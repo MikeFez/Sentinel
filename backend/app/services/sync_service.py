@@ -5,7 +5,7 @@ import logging
 from ..models import Company, Sync, SyncStatus
 from .stock_service import StockService
 from .news_service import NewsService
-from .ollama_service import OllamaService
+from .llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 class SyncService:
     """Service for orchestrating company data synchronization"""
 
-    def __init__(self, db: Session, ollama_url: str, ollama_model: str, finnhub_api_key: str):
+    def __init__(self, db: Session, llm_base_url: str, llm_model: str, finnhub_api_key: str):
         self.db = db
         self.stock_service = StockService(finnhub_api_key)
         self.news_service = NewsService()
-        self.ollama_service = OllamaService(ollama_url, ollama_model)
+        self.llm_service = LLMService(llm_base_url, llm_model)
 
     async def sync_company(self, company_id: str, news_count: int = 10, existing_sync: Optional[Sync] = None) -> Optional[Sync]:
         """
@@ -108,7 +108,7 @@ class SyncService:
             logger.info(f"Generating AI analysis for {company.name}")
             from ..routers.settings import get_setting as _get_setting
             custom_instructions = _get_setting(self.db, "ai_prompt_instructions") or None
-            summary, sentiment, prompt = await self.ollama_service.analyze_company(
+            summary, sentiment, prompt = await self.llm_service.analyze_company(
                 company_name=company.name,
                 ticker=company.ticker,
                 status=company.status.value if hasattr(company.status, 'value') else company.status,

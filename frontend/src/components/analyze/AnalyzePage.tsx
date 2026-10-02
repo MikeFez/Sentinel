@@ -32,7 +32,7 @@ function AnalyzePage() {
       });
       setResult(data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Analysis failed. Check Ollama is running.');
+      setError(err.response?.data?.detail || 'Analysis failed. Check the LLM endpoint is reachable.');
     } finally {
       setRunning(false);
     }
@@ -175,7 +175,7 @@ function AnalyzePage() {
                   className="analyze-prompt-toggle"
                   onClick={() => setShowPrompt((v) => !v)}
                 >
-                  {showPrompt ? 'Hide prompt' : 'Show prompt sent to Ollama'}
+                  {showPrompt ? 'Hide prompt' : 'Show prompt sent to the LLM'}
                 </button>
                 {showPrompt && (
                   <pre className="analyze-prompt">{result.prompt}</pre>

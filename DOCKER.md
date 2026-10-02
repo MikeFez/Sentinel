@@ -25,38 +25,26 @@ Create a `.env` file in the project root to customize settings:
 
 ```env
 DATABASE_URL=sqlite:///./data/sentinel.db
-OLLAMA_URL=http://athena.lan:11434
-OLLAMA_MODEL=qwen2.5:14b
+LLM_BASE_URL=http://athena.lan:8090/v1
+LLM_MODEL=qwen3.8:27b
+LLM_API_KEY=
 NEWS_ARTICLE_COUNT=10
 ```
 
 Or modify `docker-compose.yml` directly.
 
-### Ollama Connection
+### LLM Connection
 
-By default, Sentinel connects to Ollama at `http://athena.lan:11434`. Update this to match your Ollama server:
+Sentinel talks to any OpenAI-compatible endpoint (llama-swap, llama.cpp, vLLM, LM Studio, OpenAI, ...) via `/chat/completions` and `/models`:
 
-**Option 1: Environment Variable**
 ```yaml
 environment:
-  - OLLAMA_URL=http://your-ollama-host:11434
+  - LLM_BASE_URL=http://athena.lan:8090/v1   # include /v1
+  - LLM_MODEL=qwen3.8:27b
+  - LLM_API_KEY=                             # optional bearer token
 ```
 
-**Option 2: Docker Network** (if Ollama is also in Docker)
-```yaml
-services:
-  sentinel:
-    # ... existing config ...
-    environment:
-      - OLLAMA_URL=http://ollama:11434
-
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-```
+`LLM_BASE_URL` and `LLM_MODEL` are defaults; the Settings page can override them (stored in the DB). `LLM_API_KEY` is env-only.
 
 ## Data Persistence
 
@@ -90,8 +78,8 @@ docker build -t sentinel:latest .
 docker run -d \
   -p 8000:8000 \
   -v $(pwd)/data:/app/data \
-  -e OLLAMA_URL=http://athena.lan:11434 \
-  -e OLLAMA_MODEL=qwen2.5:14b \
+  -e LLM_BASE_URL=http://athena.lan:8090/v1 \
+  -e LLM_MODEL=qwen3.8:27b \
   --name sentinel \
   sentinel:latest
 ```
@@ -129,17 +117,17 @@ docker-compose logs sentinel
 
 # Common issues:
 # - Port 8000 already in use
-# - Ollama URL unreachable
+# - LLM endpoint unreachable
 # - Database permission issues
 ```
 
-### Can't connect to Ollama
+### Can't connect to the LLM endpoint
 ```bash
-# Test Ollama connectivity from container
-docker-compose exec sentinel curl http://athena.lan:11434/api/tags
+# Test connectivity from the container (python, since the image has no curl)
+docker-compose exec sentinel python -c "import httpx;print(httpx.get('http://athena.lan:8090/v1/models').status_code)"
 
 # If this fails, check:
-# - Ollama is running
+# - The LLM server is running and the URL ends in /v1
 # - Firewall allows connections
 # - Hostname resolves correctly
 ```

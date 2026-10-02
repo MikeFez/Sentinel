@@ -2,8 +2,10 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen3.5:9b"
+    # Any OpenAI-compatible endpoint, including the /v1 suffix
+    llm_base_url: str = "http://localhost:8080/v1"
+    llm_model: str = "qwen3.8:27b"
+    llm_api_key: str = ""
     news_article_count: int = 10
     finnhub_api_key: str = ""
     auto_refresh_enabled: bool = False

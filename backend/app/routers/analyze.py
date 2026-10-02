@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from ..database import get_db
 from ..services.stock_service import StockService
-from ..services.ollama_service import OllamaService
+from ..services.llm_service import LLMService
 from ..config import settings as app_settings
 from .settings import get_setting
 
@@ -30,8 +30,8 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
     Run an ad-hoc AI analysis on a ticker or company name without creating a sync record.
     If a ticker is provided, live stock data and news are fetched first.
     """
-    ollama_url = get_setting(db, "ollama_url")
-    ollama_model = get_setting(db, "ollama_model")
+    llm_base_url = get_setting(db, "llm_base_url")
+    llm_model = get_setting(db, "llm_model")
 
     stock_data = None
     news_articles = []
@@ -51,8 +51,8 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
 
     custom_instructions = get_setting(db, "ai_prompt_instructions") or None
 
-    ollama = OllamaService(ollama_url, ollama_model)
-    summary, sentiment, prompt = await ollama.analyze_company(
+    llm = LLMService(llm_base_url, llm_model)
+    summary, sentiment, prompt = await llm.analyze_company(
         company_name=request.company_name or request.ticker or "Unknown",
         ticker=request.ticker,
         status="public" if request.ticker else "private",

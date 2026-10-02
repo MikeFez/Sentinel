@@ -176,11 +176,11 @@ When you run `make start` (or `make docker-up`):
 Override settings when running commands:
 
 ```bash
-# Custom Ollama endpoint
-OLLAMA_URL=http://custom.lan:11434 make docker-up
+# Custom LLM endpoint
+LLM_BASE_URL=http://custom.lan:8080/v1 make docker-up
 
 # Different model
-OLLAMA_MODEL=llama3 make deploy
+LLM_MODEL=llama3 make deploy
 ```
 
 Or edit `docker-compose.yml` to persist changes.

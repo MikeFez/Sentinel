@@ -21,8 +21,8 @@ def get_setting(db: Session, key: str, default: str) -> str:
 async def _run_sync_background(
     sync_id: str,
     company_id: str,
-    ollama_url: str,
-    ollama_model: str,
+    llm_base_url: str,
+    llm_model: str,
     finnhub_api_key: str,
     news_count: int,
 ) -> None:
@@ -31,7 +31,7 @@ async def _run_sync_background(
     try:
         sync = db.query(Sync).filter(Sync.id == sync_id).first()
         if sync:
-            service = SyncService(db, ollama_url, ollama_model, finnhub_api_key)
+            service = SyncService(db, llm_base_url, llm_model, finnhub_api_key)
             await service.sync_company(company_id, news_count=news_count, existing_sync=sync)
     finally:
         db.close()
@@ -49,8 +49,8 @@ async def trigger_sync(
         raise HTTPException(status_code=404, detail="Company not found")
 
     # Get settings from database
-    ollama_url = get_setting(db, "ollama_url", settings.ollama_url)
-    ollama_model = get_setting(db, "ollama_model", settings.ollama_model)
+    llm_base_url = get_setting(db, "llm_base_url", settings.llm_base_url)
+    llm_model = get_setting(db, "llm_model", settings.llm_model)
     news_count = int(get_setting(db, "news_count", str(settings.news_article_count)))
 
     # Create sync record immediately and return it; do the work in background
@@ -63,8 +63,8 @@ async def trigger_sync(
         _run_sync_background,
         sync.id,
         company_id,
-        ollama_url,
-        ollama_model,
+        llm_base_url,
+        llm_model,
         settings.finnhub_api_key,
         news_count,
     )
@@ -157,8 +157,8 @@ async def sync_stale_companies(
     if not stale_companies:
         return {"queued": 0, "message": "All companies are up to date"}
 
-    ollama_url = get_setting(db, "ollama_url", settings.ollama_url)
-    ollama_model = get_setting(db, "ollama_model", settings.ollama_model)
+    llm_base_url = get_setting(db, "llm_base_url", settings.llm_base_url)
+    llm_model = get_setting(db, "llm_model", settings.llm_model)
     news_count = int(get_setting(db, "news_count", str(settings.news_article_count)))
 
     queued = 0
@@ -171,8 +171,8 @@ async def sync_stale_companies(
             _run_sync_background,
             sync.id,
             company.id,
-            ollama_url,
-            ollama_model,
+            llm_base_url,
+            llm_model,
             settings.finnhub_api_key,
             news_count,
         )

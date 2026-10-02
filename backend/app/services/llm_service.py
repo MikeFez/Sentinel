@@ -2,23 +2,29 @@ import httpx
 import logging
 from typing import Optional, Tuple, List, Dict, Any
 import json
+import re
 
 logger = logging.getLogger(__name__)
 
 
-class OllamaService:
-    """Service for interacting with Ollama API"""
+class LLMService:
+    """Service for interacting with an OpenAI-compatible chat completions API"""
 
-    def __init__(self, base_url: str, model: str):
+    def __init__(self, base_url: str, model: str, api_key: Optional[str] = None):
+        from ..config import settings as _settings
+
+        # base_url includes the /v1 suffix, e.g. http://athena.lan:8090/v1
         self.base_url = base_url.rstrip("/")
         self.model = model
+        key = _settings.llm_api_key if api_key is None else api_key
+        self.headers = {"Authorization": f"Bearer {key}"} if key else {}
 
     async def generate(self, prompt: str, timeout: int = 60) -> Optional[str]:
         """
-        Generate text using Ollama.
+        Generate text using the configured LLM.
 
         Args:
-            prompt: The prompt to send to Ollama
+            prompt: The prompt to send to the LLM
             timeout: Request timeout in seconds
 
         Returns:
@@ -27,15 +33,22 @@ class OllamaService:
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
-                    f"{self.base_url}/api/generate",
-                    json={"model": self.model, "prompt": prompt, "stream": False},
+                    f"{self.base_url}/chat/completions",
+                    headers=self.headers,
+                    json={
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "stream": False,
+                    },
                 )
                 response.raise_for_status()
                 data = response.json()
-                return data.get("response", "").strip()
+                content = data["choices"][0]["message"].get("content") or ""
+                # Some servers return reasoning inline; drop it
+                return re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
 
         except Exception as e:
-            logger.error(f"Ollama generation failed: {str(e)}")
+            logger.error(f"LLM generation failed: {str(e)}")
             return None
 
     async def analyze_company(
@@ -71,7 +84,7 @@ class OllamaService:
             custom_instructions=custom_instructions,
         )
 
-        # Get analysis from Ollama
+        # Get analysis from the LLM
         response = await self.generate(prompt)
         if not response:
             return None, None, None
@@ -156,7 +169,7 @@ class OllamaService:
         return prompt
 
     def _parse_analysis_response(self, response: str) -> Tuple[Optional[str], Optional[str]]:
-        """Parse the Ollama response to extract summary and sentiment"""
+        """Parse the LLM response to extract summary and sentiment"""
         try:
             # Extract summary
             summary = None
@@ -184,38 +197,38 @@ class OllamaService:
             return summary, sentiment
 
         except Exception as e:
-            logger.error(f"Failed to parse Ollama response: {str(e)}")
+            logger.error(f"Failed to parse LLM response: {str(e)}")
             return None, "neutral"
 
     async def list_models(self) -> List[str]:
         """
-        List available models from Ollama.
+        List available models from the LLM endpoint.
 
         Returns:
             List of model names
         """
         try:
             async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
+                response = await client.get(f"{self.base_url}/models", headers=self.headers)
                 response.raise_for_status()
                 data = response.json()
-                models = data.get("models", [])
-                return [model.get("name") for model in models if model.get("name")]
+                models = data.get("data", [])
+                return [model.get("id") for model in models if model.get("id")]
 
         except Exception as e:
-            logger.error(f"Failed to list Ollama models: {str(e)}")
+            logger.error(f"Failed to list LLM models: {str(e)}")
             return []
 
     async def check_health(self) -> bool:
         """
-        Check if Ollama is available.
+        Check if the LLM endpoint is available.
 
         Returns:
-            True if Ollama is responding, False otherwise
+            True if the endpoint is responding, False otherwise
         """
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
+                response = await client.get(f"{self.base_url}/models", headers=self.headers)
                 return response.status_code == 200
         except Exception:
             return False

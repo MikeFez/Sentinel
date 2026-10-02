@@ -3,14 +3,14 @@ import { RefreshCw, Check, X, AlertCircle } from 'lucide-react';
 import {
   getSettings,
   updateSettings,
-  getOllamaModels,
-  checkOllamaHealth,
+  getLLMModels,
+  checkLLMHealth,
 } from '../../api/client';
-import './OllamaSettings.css';
+import './LLMSettings.css';
 
-function OllamaSettings() {
-  const [ollamaUrl, setOllamaUrl] = useState('');
-  const [ollamaModel, setOllamaModel] = useState('');
+function LLMSettings() {
+  const [llmBaseUrl, setLlmBaseUrl] = useState('');
+  const [llmModel, setLlmModel] = useState('');
   const [newsCount, setNewsCount] = useState('10');
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [autoRefreshHours, setAutoRefreshHours] = useState('24');
@@ -33,8 +33,8 @@ function OllamaSettings() {
   const loadSettings = async () => {
     try {
       const settings = await getSettings();
-      setOllamaUrl(settings.ollama_url || '');
-      setOllamaModel(settings.ollama_model || '');
+      setLlmBaseUrl(settings.llm_base_url || '');
+      setLlmModel(settings.llm_model || '');
       setNewsCount(settings.news_count || '10');
       setAutoRefreshEnabled(settings.auto_refresh_enabled === 'true');
       setAutoRefreshHours(settings.auto_refresh_hours || '24');
@@ -50,10 +50,10 @@ function OllamaSettings() {
 
   const loadModels = async () => {
     try {
-      const modelList = await getOllamaModels();
+      const modelList = await getLLMModels();
       setModels(modelList);
     } catch (error) {
-      console.error('Failed to load Ollama models:', error);
+      console.error('Failed to load LLM models:', error);
       setModels([]);
     }
   };
@@ -61,11 +61,11 @@ function OllamaSettings() {
   const checkHealth = async () => {
     setCheckingHealth(true);
     try {
-      const status = await checkOllamaHealth();
+      const status = await checkLLMHealth();
       setHealthStatus(status);
     } catch (error) {
       console.error('Health check failed:', error);
-      setHealthStatus({ healthy: false, url: ollamaUrl });
+      setHealthStatus({ healthy: false, url: llmBaseUrl });
     } finally {
       setCheckingHealth(false);
     }
@@ -75,8 +75,8 @@ function OllamaSettings() {
     setSaving(true);
     try {
       await updateSettings({
-        ollama_url: ollamaUrl,
-        ollama_model: ollamaModel,
+        llm_base_url: llmBaseUrl,
+        llm_model: llmModel,
         news_count: newsCount,
         auto_refresh_enabled: autoRefreshEnabled ? 'true' : 'false',
         auto_refresh_hours: autoRefreshHours,
@@ -96,16 +96,16 @@ function OllamaSettings() {
 
   if (loading) {
     return (
-      <div className="ollama-settings">
+      <div className="llm-settings">
         <div className="loading">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="ollama-settings">
+    <div className="llm-settings">
       <div className="settings-header-row">
-        <h2>Ollama Configuration</h2>
+        <h2>LLM Configuration</h2>
         {healthStatus && (
           <div className={`health-badge ${healthStatus.healthy ? 'healthy' : 'unhealthy'}`}>
             {healthStatus.healthy ? (
@@ -125,8 +125,8 @@ function OllamaSettings() {
 
       <div className="settings-form">
         <div className="form-group">
-          <label htmlFor="ollama-url">
-            Ollama URL
+          <label htmlFor="llm-url">
+            LLM Endpoint URL
             <button
               type="button"
               className="refresh-button"
@@ -138,19 +138,19 @@ function OllamaSettings() {
             </button>
           </label>
           <input
-            id="ollama-url"
+            id="llm-url"
             type="url"
-            value={ollamaUrl}
-            onChange={(e) => setOllamaUrl(e.target.value)}
-            placeholder="http://athena.lan:11434"
+            value={llmBaseUrl}
+            onChange={(e) => setLlmBaseUrl(e.target.value)}
+            placeholder="http://athena.lan:8090/v1"
           />
           <small className="form-hint">
-            The URL where your Ollama instance is running (including port)
+            OpenAI-compatible base URL, including /v1 (e.g. http://athena.lan:8090/v1). The API key comes from the LLM_API_KEY env var.
           </small>
         </div>
 
         <div className="form-group">
-          <label htmlFor="ollama-model">
+          <label htmlFor="llm-model">
             Model
             <button
               type="button"
@@ -163,9 +163,9 @@ function OllamaSettings() {
           </label>
           {models.length > 0 ? (
             <select
-              id="ollama-model"
-              value={ollamaModel}
-              onChange={(e) => setOllamaModel(e.target.value)}
+              id="llm-model"
+              value={llmModel}
+              onChange={(e) => setLlmModel(e.target.value)}
             >
               {models.map((model) => (
                 <option key={model} value={model}>
@@ -176,23 +176,23 @@ function OllamaSettings() {
           ) : (
             <>
               <input
-                id="ollama-model"
+                id="llm-model"
                 type="text"
-                value={ollamaModel}
-                onChange={(e) => setOllamaModel(e.target.value)}
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
                 placeholder="qwen2.5:14b"
               />
               <div className="model-warning">
                 <AlertCircle size={16} />
                 <span>
-                  Unable to fetch models from Ollama. You can still manually enter a model
-                  name. Make sure Ollama is running and the URL is correct.
+                  Unable to fetch models from the endpoint. You can still manually enter a model
+                  name. Make sure the server is running and the URL is correct.
                 </span>
               </div>
             </>
           )}
           <small className="form-hint">
-            The Ollama model to use for analysis and summarization
+            The model to use for analysis and summarization
           </small>
         </div>
 
@@ -275,7 +275,7 @@ function OllamaSettings() {
             style={{ fontFamily: 'monospace', fontSize: '13px' }}
           />
           <small className="form-hint">
-            These instructions are appended after the company data in every prompt sent to Ollama.
+            These instructions are appended after the company data in every prompt sent to the LLM.
             The response must still contain <code>SUMMARY:</code> and <code>SENTIMENT:</code> sections
             for parsing to work.
           </small>
@@ -295,4 +295,4 @@ function OllamaSettings() {
   );
 }
 
-export default OllamaSettings;
+export default LLMSettings;

@@ -112,16 +112,16 @@ export const updateSettings = async (
   return response.data;
 };
 
-export const getOllamaModels = async (): Promise<string[]> => {
-  const response = await api.get('/settings/ollama/models');
+export const getLLMModels = async (): Promise<string[]> => {
+  const response = await api.get('/settings/llm/models');
   return response.data;
 };
 
-export const checkOllamaHealth = async (): Promise<{
+export const checkLLMHealth = async (): Promise<{
   healthy: boolean;
   url: string;
 }> => {
-  const response = await api.get('/settings/ollama/health');
+  const response = await api.get('/settings/llm/health');
   return response.data;
 };
 

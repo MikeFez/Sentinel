@@ -48,8 +48,6 @@ db = SessionLocal()
 if db.query(Setting).count() == 0:
     print('Setting up default configuration...')
     defaults = [
-        Setting(key='ollama_url', value='${OLLAMA_URL:-http://athena.lan:11434}'),
-        Setting(key='ollama_model', value='${OLLAMA_MODEL:-qwen2.5:14b}'),
         Setting(key='news_count', value='${NEWS_ARTICLE_COUNT:-10}'),
     ]
     for setting in defaults:

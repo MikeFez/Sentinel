@@ -225,7 +225,7 @@ function DiscoverPage() {
       startPolling(initial.session_id);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg || 'Discovery failed. Check Ollama is running.');
+      setError(msg || 'Discovery failed. Check the LLM endpoint is reachable.');
       setDiscovering(false);
     }
   };
@@ -420,13 +420,13 @@ function DiscoverPage() {
         <div className="discover-empty">
           <p>No publicly traded companies found for "{session?.theme}".</p>
           <p className="discover-empty-hint">
-            Try a more specific technical term, or check that Ollama returned useful keywords above.
+            Try a more specific technical term, or check that the LLM returned useful keywords above.
           </p>
         </div>
       )}
 
       {session?.status === 'failed' && (
-        <div className="discover-error">{session.error || 'Discovery failed. Check Ollama is running.'}</div>
+        <div className="discover-error">{session.error || 'Discovery failed. Check the LLM endpoint is reachable.'}</div>
       )}
     </div>
   );

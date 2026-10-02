@@ -117,7 +117,7 @@ info: ## Show project information
 	@echo "  Backend:  FastAPI + Python 3.12+"
 	@echo "  Frontend: React + TypeScript + Vite"
 	@echo "  Database: SQLite (volume mounted)"
-	@echo "  AI:       Ollama (qwen2.5:14b)"
+	@echo "  AI:       OpenAI-compatible endpoint (LLM_BASE_URL)"
 	@echo ""
 	@echo "Documentation:"
 	@echo "  README.md       - Getting started"

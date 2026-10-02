@@ -19,7 +19,7 @@ A self-hosted stock and company intelligence dashboard that aggregates news, sto
 - Historical sync tracking
 
 ✅ **Phase 3 - AI Integration**
-- Ollama integration for AI-powered analysis
+- LLM integration via any OpenAI-compatible endpoint
 - Intelligent news summarization
 - Sentiment analysis (bullish/bearish/neutral/mixed)
 - Configurable AI models
@@ -43,7 +43,7 @@ A self-hosted stock and company intelligence dashboard that aggregates news, sto
 - **Backend**: Python 3.12+ / FastAPI
 - **Frontend**: React (TypeScript) + Vite
 - **Database**: SQLite (via SQLAlchemy + Alembic)
-- **AI**: Ollama (configurable endpoint and model)
+- **AI**: Any OpenAI-compatible LLM endpoint (llama-swap, llama.cpp, vLLM, OpenAI, ...)
 - **Stock Data**: yfinance
 - **News Data**: Google News RSS
 - **Deployment**: Docker + Docker Compose
@@ -54,7 +54,7 @@ A self-hosted stock and company intelligence dashboard that aggregates news, sto
 
 - Docker
 - Docker Compose
-- Ollama (running on a server or local machine)
+- An OpenAI-compatible LLM endpoint
 
 ### Quick Start
 
@@ -120,8 +120,9 @@ See `docker-compose.example.yml`. Pulling needs `docker login gitea.fessenden.ap
 | Port | `8000` |
 | Volume | `/app/data` (SQLite database) |
 | `FINNHUB_API_KEY` | Finnhub API key |
-| `OLLAMA_URL` | Ollama endpoint (initial default for the settings table) |
-| `OLLAMA_MODEL` | Ollama model (initial default) |
+| `LLM_BASE_URL` | OpenAI-compatible base URL including `/v1`, e.g. `http://athena.lan:8090/v1` (default until changed in Settings) |
+| `LLM_MODEL` | Model name, e.g. `qwen3.8:27b` (default until changed in Settings) |
+| `LLM_API_KEY` | Optional bearer token for the endpoint (env only, never stored in the DB) |
 | `NEWS_ARTICLE_COUNT` | Articles per sync (initial default, `10`) |
 
 ## Project Structure
@@ -154,7 +155,7 @@ Once the backend is running, visit http://localhost:8000/docs for interactive AP
 
 - [x] Phase 1: Foundation (project scaffolding, CRUD operations, basic UI)
 - [x] Phase 2: Sync & Data (stock data, news fetching, sync orchestration)
-- [x] Phase 3: AI Integration (Ollama, sentiment analysis)
+- [x] Phase 3: AI Integration (LLM, sentiment analysis)
 - [x] Phase 4: Home Dashboard (aggregated views, activity feeds)
 - [x] Phase 5: Polish & Docker (containerization, error handling)
 

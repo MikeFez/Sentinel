@@ -8,9 +8,9 @@
 
 The hard problem is turning a free-text theme into a reliable list of tickers without LLM hallucination. The best approach is a two-step pipeline:
 
-**Step 1 — Keyword expansion via Ollama**
+**Step 1 — Keyword expansion via the LLM**
 
-Ask Ollama to expand the user's theme into concrete search terms. Prompt it for structured JSON output:
+Ask the LLM to expand the user's theme into concrete search terms. Prompt it for structured JSON output:
 
 ```
 Given the theme "Water Desalination", return a JSON object with:
@@ -40,7 +40,7 @@ For each candidate ticker, call Finnhub's company profile endpoint (already in `
 
 **Step 4 — Batch sentiment analysis**
 
-For each validated company, run the same news fetch + Ollama analysis as a normal sync, but store results in a temporary session rather than persisting to the database.
+For each validated company, run the same news fetch + LLM analysis as a normal sync, but store results in a temporary session rather than persisting to the database.
 
 ---
 
@@ -71,10 +71,10 @@ Clicking a row expands the AI summary inline. "+ Watch" creates the company reco
 ### Implementation Notes
 
 - **Results are ephemeral** — nothing is persisted until the user clicks "+ Watch"
-- **Rate limiting** — Finnhub and Ollama calls must be sequential, not parallel. Use the existing exponential backoff in `StockService._request()`. With 8 companies, expect ~2–3 minutes total.
+- **Rate limiting** — Finnhub and LLM calls must be sequential, not parallel. Use the existing exponential backoff in `StockService._request()`. With 8 companies, expect ~2–3 minutes total.
 - **Progress feedback** — stream status updates to the frontend as each company is processed (SSE or simple polling against a session key). Show a progress bar or per-company status chips.
 - **EDGAR pagination** — each keyword search returns up to 10 results by default; use `&from=0&size=20` to get more. Deduplicate aggressively — the same company may appear across multiple keyword searches.
-- **ETF seeding (optional enhancement)** — if Ollama returns ETF hints (e.g. `PHO`), Finnhub's ETF holdings endpoint can return constituent tickers as a high-quality seed list, supplementing the EDGAR approach.
+- **ETF seeding (optional enhancement)** — if the LLM returns ETF hints (e.g. `PHO`), Finnhub's ETF holdings endpoint can return constituent tickers as a high-quality seed list, supplementing the EDGAR approach.
 - **SEC EDGAR rate limits** — the public API is rate-limited to ~10 requests/second; with 4–6 keyword queries this is not a concern.
 - **No new API keys required** for the core flow — SEC EDGAR is free and unauthenticated; Finnhub is already integrated.
 
@@ -92,7 +92,7 @@ Line chart of `stock_price` across all completed syncs for a company. Already ha
 When a price alert fires or a sentiment flips (e.g. bullish → bearish), send a notification via email (SMTP) or a webhook (Slack, Discord, ntfy). Would pair with the auto-refresh loop as the trigger.
 
 ### Watchlist Notes
-Free-text notes field per company, visible on the detail page. Useful for recording thesis, concerns, or reminders. Could also be injected into the Ollama prompt as extra context (the ad-hoc analysis page already supports this pattern).
+Free-text notes field per company, visible on the detail page. Useful for recording thesis, concerns, or reminders. Could also be injected into the LLM prompt as extra context (the ad-hoc analysis page already supports this pattern).
 
 ### Tag-Based Filtering on Dashboard
 Filter the company list by tag on the homepage, not just by search. Clicking a tag chip in the sidebar or header would narrow the list to that tag.

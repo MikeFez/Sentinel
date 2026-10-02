@@ -4,14 +4,14 @@ from typing import List, Dict, Any
 from ..database import get_db
 from ..models import Setting
 from ..schemas.setting import SettingResponse, SettingUpdate
-from ..services.ollama_service import OllamaService
+from ..services.llm_service import LLMService
 from ..config import settings as app_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 SETTING_DEFAULTS: dict[str, str] = {
-    "ollama_url": app_settings.ollama_url,
-    "ollama_model": app_settings.ollama_model,
+    "llm_base_url": app_settings.llm_base_url,
+    "llm_model": app_settings.llm_model,
     "news_count": str(app_settings.news_article_count),
     "auto_refresh_enabled": str(app_settings.auto_refresh_enabled).lower(),
     "auto_refresh_hours": str(app_settings.auto_refresh_hours),
@@ -58,34 +58,34 @@ def update_settings(updates: Dict[str, str], db: Session = Depends(get_db)):
     return get_all_settings(db)
 
 
-@router.get("/ollama/models", response_model=List[str])
-async def get_ollama_models(db: Session = Depends(get_db)):
-    """Get available Ollama models"""
-    ollama_url = get_setting(db, "ollama_url")
+@router.get("/llm/models", response_model=List[str])
+async def get_llm_models(db: Session = Depends(get_db)):
+    """Get available LLM models"""
+    llm_base_url = get_setting(db, "llm_base_url")
 
-    # Create a temporary Ollama service to query models
-    ollama_service = OllamaService(ollama_url, "")
+    # Create a temporary LLM service to query models
+    llm_service = LLMService(llm_base_url, "")
 
-    models = await ollama_service.list_models()
+    models = await llm_service.list_models()
 
     if not models:
         raise HTTPException(
             status_code=503,
-            detail=f"Unable to connect to Ollama at {ollama_url}. Please check the URL and ensure Ollama is running.",
+            detail=f"Unable to reach the LLM endpoint at {llm_base_url}. Check the URL (it should end in /v1) and that the server is running.",
         )
 
     return models
 
 
-@router.get("/ollama/health")
-async def check_ollama_health(db: Session = Depends(get_db)):
-    """Check if Ollama is accessible"""
-    ollama_url = get_setting(db, "ollama_url")
+@router.get("/llm/health")
+async def check_llm_health(db: Session = Depends(get_db)):
+    """Check if the LLM endpoint is accessible"""
+    llm_base_url = get_setting(db, "llm_base_url")
 
-    ollama_service = OllamaService(ollama_url, "")
-    is_healthy = await ollama_service.check_health()
+    llm_service = LLMService(llm_base_url, "")
+    is_healthy = await llm_service.check_health()
 
     return {
         "healthy": is_healthy,
-        "url": ollama_url,
+        "url": llm_base_url,
     }

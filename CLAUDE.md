@@ -6,7 +6,7 @@ Single-container Docker deployment:
 
 - **Backend**: FastAPI (Python 3.12+), SQLAlchemy ORM, SQLite, Alembic migrations
 - **Frontend**: React + TypeScript + Vite, built at container image time and served as static files by FastAPI
-- **AI**: Ollama (external, configured via settings)
+- **AI**: OpenAI-compatible LLM endpoint (external; `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`, URL and model overridable in Settings)
 - **Stock data**: Finnhub API (key in `.env`)
 
 The frontend is compiled into the image during `docker build`. There is no live-reload in production — any frontend or backend change requires a rebuild.
@@ -41,7 +41,7 @@ backend/
     models/            # SQLAlchemy ORM models
     schemas/           # Pydantic request/response schemas
     routers/           # API route handlers
-    services/          # Business logic (sync, stock, ollama, news)
+    services/          # Business logic (sync, stock, llm, news)
   alembic/             # Database migrations
     versions/          # Migration scripts (committed)
 

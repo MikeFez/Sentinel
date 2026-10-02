@@ -28,8 +28,8 @@ async def start_discover(
     if not request.theme.strip():
         raise HTTPException(status_code=400, detail="Theme cannot be empty")
 
-    ollama_url = get_setting(db, "ollama_url") or app_settings.ollama_url
-    ollama_model = get_setting(db, "ollama_model") or app_settings.ollama_model
+    llm_base_url = get_setting(db, "llm_base_url") or app_settings.llm_base_url
+    llm_model = get_setting(db, "llm_model") or app_settings.llm_model
     custom_instructions = get_setting(db, "ai_prompt_instructions") or app_settings.ai_prompt_instructions
 
     session = discover_service.create_session(request.theme.strip())
@@ -37,8 +37,8 @@ async def start_discover(
     background_tasks.add_task(
         discover_service.run_discover,
         session["session_id"],
-        ollama_url,
-        ollama_model,
+        llm_base_url,
+        llm_model,
         app_settings.finnhub_api_key,
         custom_instructions,
     )
@@ -74,8 +74,8 @@ async def analyze_discover_company(
     if company["status"] == "analyzing":
         return {"message": "Already analyzing"}
 
-    ollama_url = get_setting(db, "ollama_url") or app_settings.ollama_url
-    ollama_model = get_setting(db, "ollama_model") or app_settings.ollama_model
+    llm_base_url = get_setting(db, "llm_base_url") or app_settings.llm_base_url
+    llm_model = get_setting(db, "llm_model") or app_settings.llm_model
     custom_instructions = get_setting(db, "ai_prompt_instructions") or app_settings.ai_prompt_instructions
 
     company["status"] = "analyzing"
@@ -84,8 +84,8 @@ async def analyze_discover_company(
         discover_service.analyze_one,
         session_id,
         ticker,
-        ollama_url,
-        ollama_model,
+        llm_base_url,
+        llm_model,
         app_settings.finnhub_api_key,
         custom_instructions,
     )

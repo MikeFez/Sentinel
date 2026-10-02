@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from .ollama_service import OllamaService
+from .llm_service import LLMService
 from .stock_service import StockService
 
 logger = logging.getLogger(__name__)
@@ -45,8 +45,8 @@ def create_session(theme: str) -> dict:
 
 async def run_discover(
     session_id: str,
-    ollama_url: str,
-    ollama_model: str,
+    llm_base_url: str,
+    llm_model: str,
     finnhub_api_key: str,
     custom_instructions: str,
 ) -> None:
@@ -59,13 +59,13 @@ async def run_discover(
         return
 
     try:
-        ollama = OllamaService(ollama_url, ollama_model)
+        llm = LLMService(llm_base_url, llm_model)
         stock_service = StockService(finnhub_api_key)
         theme = session["theme"]
 
         # ── Step 1: Keyword expansion ───────────────────────────────────────
         session["status"] = "expanding"
-        keywords, etf_hints, rationale = await _expand_keywords(ollama, theme)
+        keywords, etf_hints, rationale = await _expand_keywords(llm, theme)
         session["keywords"] = keywords
         session["etf_hints"] = etf_hints
         session["rationale"] = rationale
@@ -102,8 +102,8 @@ async def run_discover(
 async def analyze_one(
     session_id: str,
     ticker: str,
-    ollama_url: str,
-    ollama_model: str,
+    llm_base_url: str,
+    llm_model: str,
     finnhub_api_key: str,
     custom_instructions: str,
 ) -> None:
@@ -120,9 +120,9 @@ async def analyze_one(
         return
 
     try:
-        ollama = OllamaService(ollama_url, ollama_model)
+        llm = LLMService(llm_base_url, llm_model)
         stock_service = StockService(finnhub_api_key)
-        await _analyze_company(company, ollama, stock_service, custom_instructions)
+        await _analyze_company(company, llm, stock_service, custom_instructions)
     except Exception as exc:
         logger.error(f"[{session_id}] On-demand analysis failed for {ticker}: {exc}")
         company["status"] = "failed"
@@ -132,8 +132,8 @@ async def analyze_one(
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _expand_keywords(ollama: OllamaService, theme: str) -> tuple[list, list, str]:
-    """Ask Ollama to expand a free-text theme into SEC filing search terms."""
+async def _expand_keywords(llm: LLMService, theme: str) -> tuple[list, list, str]:
+    """Ask the LLM to expand a free-text theme into SEC filing search terms."""
     prompt = f"""You are a financial research assistant.
 
 Given the investment theme: "{theme}"
@@ -151,7 +151,7 @@ Rules:
 - rationale: one concise sentence describing the theme.
 """
 
-    response = await ollama.generate(prompt, timeout=60)
+    response = await llm.generate(prompt, timeout=60)
     if not response:
         return [theme], [], ""
 
@@ -284,11 +284,11 @@ async def _resolve_tickers(cik_companies: list[dict], stock_service: StockServic
 
 async def _analyze_company(
     company: dict,
-    ollama: OllamaService,
+    llm: LLMService,
     stock_service: StockService,
     custom_instructions: str,
 ) -> None:
-    """Fetch recent news and run Ollama analysis for a single company. Mutates company dict."""
+    """Fetch recent news and run LLM analysis for a single company. Mutates company dict."""
     ticker = company["ticker"]
 
     news_articles = stock_service.get_company_news(ticker, days=7)
@@ -303,7 +303,7 @@ async def _analyze_company(
             "market_cap": company["market_cap"],
         }
 
-    summary, sentiment, _ = await ollama.analyze_company(
+    summary, sentiment, _ = await llm.analyze_company(
         company_name=company["name"],
         ticker=ticker,
         status="public",

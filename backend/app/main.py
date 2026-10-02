@@ -72,8 +72,8 @@ async def _auto_refresh_loop() -> None:
 
             logger.info(f"Auto-refresh: triggering sync for {len(stale_ids)} stale companies")
 
-            ollama_url = get_setting(db, "ollama_url")
-            ollama_model = get_setting(db, "ollama_model")
+            llm_base_url = get_setting(db, "llm_base_url")
+            llm_model = get_setting(db, "llm_model")
             news_count = int(get_setting(db, "news_count"))
         finally:
             db.close()
@@ -85,7 +85,7 @@ async def _auto_refresh_loop() -> None:
                 sync_db.add(sync)
                 sync_db.commit()
                 sync_db.refresh(sync)
-                service = SyncService(sync_db, ollama_url, ollama_model, app_settings.finnhub_api_key)
+                service = SyncService(sync_db, llm_base_url, llm_model, app_settings.finnhub_api_key)
                 await service.sync_company(company_id, news_count=news_count, existing_sync=sync)
             except Exception as exc:
                 logger.error(f"Auto-refresh failed for company {company_id}: {exc}")

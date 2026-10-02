@@ -1,5 +1,5 @@
 import TagManager from './TagManager';
-import OllamaSettings from './OllamaSettings';
+import LLMSettings from './LLMSettings';
 import './SettingsPage.css';
 
 function SettingsPage() {
@@ -10,7 +10,7 @@ function SettingsPage() {
       </div>
 
       <div className="settings-content">
-        <OllamaSettings />
+        <LLMSettings />
 
         <TagManager />
 
