@@ -1,0 +1,14 @@
+services:
+  sentinel:
+    image: gitea.fessenden.app/mikefez/sentinel:latest
+    container_name: sentinel
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data            # SQLite database (sentinel.db)
+    environment:
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
+      OLLAMA_URL: ${OLLAMA_URL:-http://athena.lan:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:14b}
+      NEWS_ARTICLE_COUNT: ${NEWS_ARTICLE_COUNT:-10}
+    restart: unless-stopped

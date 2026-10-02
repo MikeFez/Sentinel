@@ -1,0 +1,22 @@
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: gitea.fessenden.app
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            gitea.fessenden.app/mikefez/${{ github.event.repository.name }}:latest
+            gitea.fessenden.app/mikefez/${{ github.event.repository.name }}:${{ github.sha }}

@@ -1,0 +1,31 @@
+.sentiment-sparkline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sparkline-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sparkline-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sparkline-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: default;
+  transition: transform 0.1s;
+}
+
+.sparkline-dot:hover {
+  transform: scale(1.5);
+}

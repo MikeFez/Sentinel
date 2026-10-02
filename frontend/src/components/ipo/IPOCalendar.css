@@ -1,0 +1,282 @@
+.ipo-calendar {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.ipo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ipo-header-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.ipo-icon {
+  color: var(--primary);
+}
+
+.ipo-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: var(--text-primary);
+}
+
+.ipo-subtitle {
+  margin: 0.25rem 0 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.ipo-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Table */
+
+.ipo-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+}
+
+.ipo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ipo-table thead {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.ipo-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ipo-table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s;
+}
+
+.ipo-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.ipo-table tbody tr:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.03));
+}
+
+.ipo-table td {
+  padding: 0.85rem 1rem;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.row--withdrawn {
+  opacity: 0.45;
+}
+
+.row--past td {
+  color: var(--text-muted);
+}
+
+.row--past .company-name {
+  color: #10b981;
+}
+
+.row--past .col-date {
+  color: #10b981 !important;
+}
+
+/* Column-specific */
+
+.col-date {
+  white-space: nowrap;
+  color: var(--text-secondary) !important;
+  font-size: 0.85rem !important;
+}
+
+.col-days {
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.col-company {
+  min-width: 180px;
+}
+
+.company-name {
+  display: block;
+  font-weight: 600;
+}
+
+.company-symbol {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.col-price,
+.col-shares,
+.col-deal {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-status {
+  white-space: nowrap;
+}
+
+.current-price-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.price-change {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.price-change.up {
+  color: #10b981;
+}
+
+.price-change.down {
+  color: #ef4444;
+}
+
+/* Status badges */
+
+.ipo-status {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ipo-status--filed {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
+.ipo-status--expected {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.ipo-status--priced {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.ipo-status--listed {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.ipo-status--withdrawn {
+  background: rgba(107, 114, 128, 0.12);
+  color: #6b7280;
+}
+
+/* Watch button */
+
+.col-watch {
+  width: 36px;
+  text-align: center;
+}
+
+.watch-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.watch-btn:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.watch-btn--added {
+  color: #10b981;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* Empty state */
+
+.no-ipos {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
+}
+
+.no-ipos svg {
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-ipos p {
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.loading {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .ipo-calendar {
+    padding: 1rem;
+  }
+
+  .ipo-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .ipo-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

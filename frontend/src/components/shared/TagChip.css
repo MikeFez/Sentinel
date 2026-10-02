@@ -1,0 +1,16 @@
+.tag-chip-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.tag-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
