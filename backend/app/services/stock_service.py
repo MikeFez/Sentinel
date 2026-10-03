@@ -110,6 +110,15 @@ class StockService:
             logger.error(f"Error fetching stock data for {ticker}: {str(e)}")
             return None
 
+    def get_quote(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Just the price and day change, e.g. {"price": 73.92, "change": 4.91}; None if unavailable."""
+        if not self.api_key:
+            return None
+        quote = self._fetch_quote(ticker)
+        if not quote or not quote.get("c"):
+            return None
+        return {"price": quote["c"], "change": quote.get("dp")}
+
     def _fetch_quote(self, ticker: str) -> Optional[Dict[str, Any]]:
         """Fetch quote data from Finnhub"""
         try:

@@ -54,11 +54,24 @@ class SyncSummary(BaseModel):
         from_attributes = True
 
 
+class LatestAnalysis(BaseModel):
+    sync_id: str
+    synced_at: datetime
+    ai_sentiment: Optional[str] = None
+    ai_summary: str
+    ai_changes: Optional[str] = None
+    # Sentiment of the analysis before this one, to spot flips
+    previous_sentiment: Optional[str] = None
+
+
 class CompanyResponse(CompanyBase):
     id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
     tags: List[TagInCompany] = []
+    quote_price: Optional[float] = None
+    quote_change: Optional[float] = None
+    quote_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -66,6 +79,7 @@ class CompanyResponse(CompanyBase):
 
 class CompanyListResponse(CompanyResponse):
     latest_sync: Optional[SyncSummary] = None
+    latest_analysis: Optional[LatestAnalysis] = None
     is_stale: bool = False
     is_syncing: bool = False
     sync_error: Optional[str] = None

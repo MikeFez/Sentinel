@@ -1,0 +1,32 @@
+from datetime import datetime, timezone
+
+from app.models import Company
+from app.services.quote_service import market_open, last_close, quote_due
+
+
+def utc(*args):
+    return datetime(*args, tzinfo=timezone.utc)
+
+
+def test_market_hours_in_new_york():
+    # 2026-10-05 is a Monday; New York is UTC-4 in October
+    assert not market_open(utc(2026, 10, 5, 13, 29))  # 09:29 ET
+    assert market_open(utc(2026, 10, 5, 13, 30))  # 09:30 ET
+    assert market_open(utc(2026, 10, 5, 19, 59))  # 15:59 ET
+    assert not market_open(utc(2026, 10, 5, 20, 0))  # 16:00 ET
+    assert not market_open(utc(2026, 10, 3, 15, 0))  # Saturday
+
+
+def test_last_close_skips_the_weekend():
+    assert last_close(utc(2026, 10, 4, 12, 0)) == utc(2026, 10, 2, 20, 0)  # Sunday -> Friday close
+    assert last_close(utc(2026, 10, 5, 19, 0)) == utc(2026, 10, 2, 20, 0)  # Monday before close
+    assert last_close(utc(2026, 10, 5, 20, 1)) == utc(2026, 10, 5, 20, 0)  # Monday after close
+
+
+def test_quote_due():
+    weekend = utc(2026, 10, 4, 12, 0)
+    assert quote_due(Company(quote_at=None), weekend)
+    # One refresh after Friday's close, then nothing until Monday
+    assert quote_due(Company(quote_at=utc(2026, 10, 2, 19, 55)), weekend)
+    assert not quote_due(Company(quote_at=utc(2026, 10, 2, 20, 3)), weekend)
+    assert quote_due(Company(quote_at=utc(2026, 10, 5, 14, 0)), utc(2026, 10, 5, 14, 5))  # market open

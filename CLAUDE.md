@@ -42,7 +42,10 @@ backend/
     schemas/           # Pydantic request/response schemas
     routers/           # API route handlers
     services/          # Business logic (sync, stock, llm, news)
-      sync_runner.py   # start_sync/run_sync: the only way syncs are started (API, "sync stale", auto-refresh)
+      sync_runner.py   # start_sync/run_sync: the only way syncs are started; Thresholds = staleness rules
+      quote_service.py # price-only refresh while the US market is open (+ once after close)
+      maintenance.py   # prune_history: drop bulky detail from old syncs (daily)
+  tests/               # pytest suite: `make test`
   alembic/             # Database migrations
     versions/          # Migration scripts (committed)
 
@@ -74,8 +77,18 @@ Global styles use plain CSS (no modules). Specificity collisions have bitten us 
 - `GET /api/companies` returns the newest *completed* sync as `latest_sync`, plus `is_syncing` and `sync_error` (newest sync failed). The UI shows the newest analysis that exists, which may be older than the newest data.
 - `POST /api/companies/{id}/sync` returns `202` with the running sync. The frontend doesn't poll it directly: `AppData` polls the company list every 3 s while any company is syncing and toasts when one finishes.
 
+### AI analysis
+The model is asked for one JSON object (summary, sentiment, key_points, risks, changes); `parse_analysis` in `llm_service.py` falls back to the old `SUMMARY:`/`SENTIMENT:` text. The prompt includes the previous analysis so `changes` can say what's different. The `ai_prompt_instructions` setting is guidance only; `clean_instructions` strips an old format section from saved values.
+
+### Prices and staleness
+- `companies.quote_*` holds the latest quote (every `price_refresh_minutes` during market hours). The frontend's `livePrice()` picks the quote or the last sync's price, whichever is newer; use it instead of `latest_sync.stock_price`.
+- Public companies go stale after `staleness_hours` (auto-refresh: `auto_refresh_hours`); private/pre-IPO ones after `private_refresh_days`. All of this lives in `Thresholds`.
+
 ### Times
 Timestamps are stored as naive UTC (SQLite) via `UTCDateTime` in `database.py`, which reads them back as aware UTC, so the API sends `...Z`. Use `parseTime`/`ago` from `lib/format.ts` on the frontend, not `new Date(str)` math.
+
+### Tests
+`make test` runs `backend/tests` with uv against a throwaway SQLite database. Add a test when changing sync, staleness, parsing or pruning logic.
 
 ### Pages
 Dashboard (`/`: portfolio, watchlist, needs-attention, earnings, latest analysis), company page (tabs: overview, news, insider trades, history), News, IPOs, Research (`/research?tab=analyze|discover`), Settings. `/portfolio`, `/analyze` and `/discover` redirect.

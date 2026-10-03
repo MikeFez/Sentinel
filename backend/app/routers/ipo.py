@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from ..database import get_db
 from ..models import IPOEntry
 from ..schemas.ipo import IPOEntryResponse
@@ -47,7 +47,7 @@ def get_ipo_calendar(db: Session = Depends(get_db)):
     Debut prices are preserved across refreshes (historical, fetched once).
     Current prices are refreshed on each fetch for listed IPOs.
     """
-    one_day_ago = datetime.now() - timedelta(hours=24)
+    one_day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     recent_entries = (
         db.query(IPOEntry)
         .filter(IPOEntry.fetched_at >= one_day_ago)

@@ -50,5 +50,10 @@ class Sync(Base):
     # Why the sync failed, or why part of it (e.g. the AI analysis) didn't complete
     error = Column(Text, nullable=True)
 
+    # Structured parts of the AI analysis
+    ai_key_points = Column(JSON, nullable=True)  # list of short strings
+    ai_risks = Column(JSON, nullable=True)  # list of short strings
+    ai_changes = Column(Text, nullable=True)  # what changed since the previous analysis
+
     # Relationships
     company = relationship("Company", back_populates="syncs")

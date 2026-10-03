@@ -35,6 +35,11 @@ class Company(Base):
     # Portfolio
     shares_owned = Column(Float, nullable=True)
 
+    # Latest quote, refreshed on its own schedule (much more often than full syncs)
+    quote_price = Column(Float, nullable=True)
+    quote_change = Column(Float, nullable=True)  # percent change on the day
+    quote_at = Column(UTCDateTime, nullable=True)
+
     # Relationships
     syncs = relationship("Sync", back_populates="company", cascade="all, delete-orphan")
     tags = relationship("Tag", secondary="company_tags", back_populates="companies")

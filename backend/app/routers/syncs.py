@@ -5,8 +5,7 @@ from ..database import get_db
 from ..models import Sync, Company
 from ..models.sync import SyncStatus
 from ..schemas.sync import SyncResponse
-from ..services.sync_runner import start_sync, run_sync, stale_company_ids
-from .settings import get_setting
+from ..services.sync_runner import start_sync, run_sync, stale_company_ids, Thresholds
 
 router = APIRouter(prefix="/api", tags=["syncs"])
 
@@ -60,14 +59,9 @@ def get_sync_queue(db: Session = Depends(get_db)):
 
 @router.post("/syncs/sync-stale")
 async def sync_stale_companies(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Queue a sync for every public company whose data is older than the staleness threshold."""
-    try:
-        hours = float(get_setting(db, "staleness_hours") or "24")
-    except ValueError:
-        hours = 24.0
-
+    """Queue a sync for every company whose data is stale (see Thresholds.for_display)."""
     queued = 0
-    for company_id in stale_company_ids(db, hours):
+    for company_id in stale_company_ids(db, Thresholds.for_display(db)):
         sync, created = start_sync(db, company_id)
         if created:
             background_tasks.add_task(run_sync, sync.id)

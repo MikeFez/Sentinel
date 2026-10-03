@@ -305,7 +305,7 @@ async def _analyze_company(
             "market_cap": company["market_cap"],
         }
 
-    summary, sentiment, _ = await llm.analyze_company(
+    analysis, _ = await llm.analyze_company(
         company_name=company["name"],
         ticker=ticker,
         status="public",
@@ -315,7 +315,9 @@ async def _analyze_company(
         insider_transactions=insider_transactions,
         custom_instructions=custom_instructions or None,
     )
+    if analysis is None:
+        raise RuntimeError(llm.last_error or "AI analysis failed")
 
-    company["sentiment"] = sentiment
-    company["summary"] = summary
+    company["sentiment"] = analysis.sentiment
+    company["summary"] = analysis.summary
     company["status"] = "complete"

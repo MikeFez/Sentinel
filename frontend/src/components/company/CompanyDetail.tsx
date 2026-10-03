@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { RefreshCw, Pencil, MoreHorizontal, Trash2, Bell, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
 import { deleteCompany, triggerSync, getCompanySyncs } from '../../api/client';
-import { useAppData, triggeredAlert } from '../../state/AppData';
+import { useAppData, triggeredAlert, livePrice } from '../../state/AppData';
 import type { Sync } from '../../types';
 import { money, pct, direction, ago, parseTime, hoursSince } from '../../lib/format';
 import StockDataPanel from './StockDataPanel';
@@ -70,7 +70,7 @@ function CompanyDetail() {
   // The newest analysis may be older than the newest data if the last analysis run failed
   const analysisSync = completed.find((s) => s.ai_summary);
   const alert = triggeredAlert(company);
-  const price = latest?.stock_price ?? null;
+  const live = livePrice(company);
   const stale = !latest || hoursSince(latest.synced_at) > stalenessHours;
   const newsCount = latest?.raw_news?.length ?? 0;
   const insiderCount = latest?.insider_transactions?.length ?? 0;
@@ -145,10 +145,11 @@ function CompanyDetail() {
         </header>
 
         <div className="cd-summary">
-          {price != null && (
-            <div className="cd-price">
-              <span className="cd-price-value num">{money(price)}</span>
-              <span className={`num ${direction(latest!.price_change)}`}>{pct(latest!.price_change)} today</span>
+          {live && (
+            <div className="cd-price" title={`Price as of ${parseTime(live.at).toLocaleString()}`}>
+              <span className="cd-price-value num">{money(live.price)}</span>
+              <span className={`num ${direction(live.change)}`}>{pct(live.change)} today</span>
+              <span className="muted cd-price-at">{ago(live.at)}</span>
             </div>
           )}
           {analysisSync?.ai_sentiment && (
@@ -158,7 +159,7 @@ function CompanyDetail() {
             </div>
           )}
           <div className={`cd-updated ${stale ? 'cd-stale' : 'muted'}`} title={latest ? parseTime(latest.synced_at).toLocaleString() : undefined}>
-            {latest ? `Updated ${ago(latest.synced_at)}` : 'Not synced yet'}
+            {latest ? `News & analysis updated ${ago(latest.synced_at)}` : 'Not synced yet'}
           </div>
         </div>
 
@@ -205,7 +206,7 @@ function CompanyDetail() {
                 </span>
               </div>
             )}
-            {analysisSync && <AiAnalysisPanel sync={analysisSync} companyName={company.name} ticker={company.ticker} status={company.status} />}
+            {analysisSync && <AiAnalysisPanel sync={analysisSync} />}
             {company.description && <div className="card cd-description">{company.description}</div>}
             {company.status === 'public' && latest && <StockDataPanel sync={latest} ticker={company.ticker} />}
             <div className="cd-two">
@@ -222,15 +223,15 @@ function CompanyDetail() {
           <div className="card">
             {company.status === 'public' && <PriceChart syncs={completed} />}
             <table className="cd-history">
-              <thead><tr><th>When</th><th className="r">Price</th><th className="r">Change</th><th>Sentiment</th><th>Result</th></tr></thead>
+              <thead><tr><th>When</th><th className="r">Price</th><th className="r hide-sm">Change</th><th>Sentiment</th><th className="hide-sm">Result</th></tr></thead>
               <tbody>
                 {syncs.map((s) => (
                   <tr key={s.id}>
                     <td title={parseTime(s.synced_at).toLocaleString()}>{parseTime(s.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
                     <td className="r num">{money(s.stock_price)}</td>
-                    <td className={`r num ${direction(s.price_change)}`}>{pct(s.price_change)}</td>
+                    <td className={`r num hide-sm ${direction(s.price_change)}`}>{pct(s.price_change)}</td>
                     <td>{s.ai_sentiment ? <SentimentBadge sentiment={s.ai_sentiment} /> : <span className="muted">—</span>}</td>
-                    <td className={s.status === 'failed' ? 'down' : s.error ? 'cd-warn' : 'muted'}>
+                    <td className={`hide-sm ${s.status === 'failed' ? 'down' : s.error ? 'cd-warn' : 'muted'}`}>
                       {s.status === 'syncing' ? 'Syncing…' : s.status === 'failed' ? `Failed: ${s.error ?? 'unknown error'}` : s.error ? 'No analysis' : 'OK'}
                     </td>
                   </tr>

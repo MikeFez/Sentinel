@@ -1,5 +1,6 @@
-import { Outlet } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { X, Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { useAppData } from '../../state/AppData';
 import './AppLayout.css';
@@ -20,9 +21,19 @@ function Toasts() {
 }
 
 function AppLayout() {
+  // On narrow screens the sidebar is a drawer; close it whenever the page changes
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { pathname, search } = useLocation();
+  useEffect(() => setMenuOpen(false), [pathname, search]);
+
   return (
     <div className="app-layout">
-      <Sidebar />
+      <header className="mobile-bar">
+        <button className="icon-button" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Menu size={20} /></button>
+        <span className="mobile-brand">Sentinel</span>
+      </header>
+      {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
+      <Sidebar open={menuOpen} />
       <main className="content-area">
         <Outlet />
       </main>

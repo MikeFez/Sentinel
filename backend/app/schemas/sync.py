@@ -30,6 +30,9 @@ class SyncResponse(BaseModel):
     insider_transactions: Optional[List[Dict[str, Any]]] = None
     financials: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    ai_key_points: Optional[List[str]] = None
+    ai_risks: Optional[List[str]] = None
+    ai_changes: Optional[str] = None
     status: str
 
     class Config:

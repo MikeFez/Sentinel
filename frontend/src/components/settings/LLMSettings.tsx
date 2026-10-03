@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAppData } from '../../state/AppData';
 import { RefreshCw, Check, X, AlertCircle } from 'lucide-react';
 import {
   getSettings,
@@ -15,6 +16,10 @@ function LLMSettings() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
   const [autoRefreshHours, setAutoRefreshHours] = useState('24');
   const [stalenessHours, setStalenessHours] = useState('24');
+  const [priceMinutes, setPriceMinutes] = useState('5');
+  const [privateDays, setPrivateDays] = useState('7');
+  const [historyDays, setHistoryDays] = useState('30');
+  const { toast } = useAppData();
   const [promptInstructions, setPromptInstructions] = useState('');
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +44,9 @@ function LLMSettings() {
       setAutoRefreshEnabled(settings.auto_refresh_enabled === 'true');
       setAutoRefreshHours(settings.auto_refresh_hours || '24');
       setStalenessHours(settings.staleness_hours || '24');
+      setPriceMinutes(settings.price_refresh_minutes ?? '5');
+      setPrivateDays(settings.private_refresh_days ?? '7');
+      setHistoryDays(settings.history_detail_days ?? '30');
       setPromptInstructions(settings.ai_prompt_instructions || '');
       await loadModels();
     } catch (error) {
@@ -81,14 +89,17 @@ function LLMSettings() {
         auto_refresh_enabled: autoRefreshEnabled ? 'true' : 'false',
         auto_refresh_hours: autoRefreshHours,
         staleness_hours: stalenessHours,
+        price_refresh_minutes: priceMinutes,
+        private_refresh_days: privateDays,
+        history_detail_days: historyDays,
         ai_prompt_instructions: promptInstructions,
       });
-      alert('Settings saved successfully!');
+      toast('Settings saved', 'success');
       await checkHealth();
       await loadModels();
     } catch (error) {
       console.error('Failed to save settings:', error);
-      alert('Failed to save settings');
+      toast('Failed to save settings', 'error');
     } finally {
       setSaving(false);
     }
@@ -229,7 +240,7 @@ function LLMSettings() {
             </span>
           </div>
           <small className="form-hint">
-            Automatically re-sync public companies (with a ticker) when their data becomes stale
+            Automatically re-sync companies when their data becomes stale
           </small>
         </div>
 
@@ -245,7 +256,7 @@ function LLMSettings() {
               onChange={(e) => setAutoRefreshHours(e.target.value)}
             />
             <small className="form-hint">
-              Re-sync a company if its last completed sync is older than this many hours (1–168)
+              Re-sync a public company if its last completed sync is older than this many hours (1–168)
             </small>
           </div>
         )}
@@ -266,18 +277,41 @@ function LLMSettings() {
         </div>
 
         <div className="form-group">
+          <label htmlFor="private-days">Private Company Refresh (days)</label>
+          <input id="private-days" type="number" min="0" max="365" value={privateDays} onChange={(e) => setPrivateDays(e.target.value)} />
+          <small className="form-hint">
+            Private and pre-IPO companies only have news, so they refresh on this slower schedule. 0 never refreshes them automatically.
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="price-minutes">Price Refresh (minutes)</label>
+          <input id="price-minutes" type="number" min="0" max="120" value={priceMinutes} onChange={(e) => setPriceMinutes(e.target.value)} />
+          <small className="form-hint">
+            How often to update prices (no news or AI analysis) while the US market is open, plus once after the close. 0 turns it off.
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="history-days">Keep Full Sync Detail (days)</label>
+          <input id="history-days" type="number" min="0" max="3650" value={historyDays} onChange={(e) => setHistoryDays(e.target.value)} />
+          <small className="form-hint">
+            Older syncs keep their price and analysis but drop news, prompts and insider data to keep the database small. Each company's newest sync is always kept in full. 0 keeps everything.
+          </small>
+        </div>
+
+        <div className="form-group">
           <label htmlFor="prompt-instructions">AI Analysis Instructions</label>
           <textarea
             id="prompt-instructions"
             value={promptInstructions}
             onChange={(e) => setPromptInstructions(e.target.value)}
-            rows={12}
+            rows={7}
             style={{ fontFamily: 'monospace', fontSize: '13px' }}
           />
           <small className="form-hint">
-            These instructions are appended after the company data in every prompt sent to the LLM.
-            The response must still contain <code>SUMMARY:</code> and <code>SENTIMENT:</code> sections
-            for parsing to work.
+            Guidance added after the company data in every analysis prompt. The response format (summary,
+            sentiment, key points, risks, what changed) is set by Sentinel, so you don't need to describe it here.
           </small>
         </div>
 

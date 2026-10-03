@@ -1,10 +1,90 @@
 import httpx
 import logging
+from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Dict, Any
 import json
 import re
 
 logger = logging.getLogger(__name__)
+
+SENTIMENTS = ("bullish", "bearish", "neutral", "mixed")
+
+OUTPUT_FORMAT = """Respond with one JSON object and nothing else:
+{
+  "summary": "2-3 short paragraphs on recent developments and the company's current situation",
+  "sentiment": "bullish" | "bearish" | "neutral" | "mixed",
+  "key_points": ["up to 4 short, specific takeaways"],
+  "risks": ["up to 3 short, specific risks"],
+  "changes": "1-2 sentences on what is different since your previous analysis (news, price, sentiment), or null"
+}"""
+
+
+@dataclass
+class Analysis:
+    summary: str
+    sentiment: str
+    key_points: List[str] = field(default_factory=list)
+    risks: List[str] = field(default_factory=list)
+    changes: Optional[str] = None
+
+
+def clean_instructions(text: Optional[str]) -> Optional[str]:
+    """Drop an output-format section from saved instructions: the app now sets the format itself.
+
+    Instructions saved before the JSON format ended with "Format your response EXACTLY as follows:
+    SUMMARY: ... SENTIMENT: ...", which would contradict it.
+    """
+    if not text or not text.strip():
+        return None
+    if "SENTIMENT:" in text:
+        for marker in ("Format your response", "SUMMARY:"):
+            cut = text.find(marker)
+            if cut >= 0:
+                text = text[:cut]
+                break
+    text = text.strip()
+    return text or None
+
+
+def _strings(value: Any, limit: int) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(v).strip() for v in value if str(v).strip()][:limit]
+
+
+def parse_analysis(text: str) -> Optional[Analysis]:
+    """Parse the model's reply: JSON as requested, or the older SUMMARY:/SENTIMENT: text as a fallback."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            data = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict) and isinstance(data.get("summary"), str) and data["summary"].strip():
+            sentiment = str(data.get("sentiment", "")).strip().lower()
+            changes = data.get("changes")
+            return Analysis(
+                summary=data["summary"].strip(),
+                sentiment=sentiment if sentiment in SENTIMENTS else "neutral",
+                key_points=_strings(data.get("key_points"), 4),
+                risks=_strings(data.get("risks"), 3),
+                changes=changes.strip() if isinstance(changes, str) and changes.strip() else None,
+            )
+
+    # Fallback: plain text, possibly in the old SUMMARY:/SENTIMENT: format
+    summary = text
+    sentiment = "neutral"
+    if "SENTIMENT:" in text:
+        tail = text[text.index("SENTIMENT:") + len("SENTIMENT:") :].lower()
+        sentiment = next((w for w in SENTIMENTS if w in tail), "neutral")
+        summary = text[: text.index("SENTIMENT:")]
+    if "SUMMARY:" in summary:
+        summary = summary[summary.index("SUMMARY:") + len("SUMMARY:") :]
+    summary = summary.strip()
+    if not summary or summary.startswith("{"):
+        return None
+    return Analysis(summary=summary, sentiment=sentiment)
 
 
 class LLMService:
@@ -21,7 +101,7 @@ class LLMService:
         # Set when generate() fails, so callers can report why
         self.last_error: Optional[str] = None
 
-    async def generate(self, prompt: str, timeout: int = 60) -> Optional[str]:
+    async def generate(self, prompt: str, timeout: int = 60, json_mode: bool = False) -> Optional[str]:
         """
         Generate text using the configured LLM.
 
@@ -33,17 +113,21 @@ class LLMService:
             Generated text or None if request fails
         """
         self.last_error = None
+        body = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=self.headers,
-                    json={
-                        "model": self.model,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "stream": False,
-                    },
-                )
+                url = f"{self.base_url}/chat/completions"
+                response = await client.post(url, headers=self.headers, json=body)
+                if json_mode and response.status_code in (400, 422):
+                    # Some servers don't support response_format; the prompt asks for JSON anyway
+                    body.pop("response_format")
+                    response = await client.post(url, headers=self.headers, json=body)
                 response.raise_for_status()
                 data = response.json()
                 content = data["choices"][0]["message"].get("content") or ""
@@ -69,37 +153,28 @@ class LLMService:
         analyst_ratings: Optional[Dict[str, Any]] = None,
         insider_transactions: Optional[List[Dict[str, Any]]] = None,
         custom_instructions: Optional[str] = None,
-    ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        previous: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Optional[Analysis], str]:
         """
-        Analyze company data and news to generate summary and sentiment.
+        Analyze a company's data and news.
 
-        Args:
-            company_name: Name of the company
-            ticker: Stock ticker (if public)
-            status: Company status (public, pre_ipo, private, acquired)
-            stock_data: Dictionary of stock metrics
-            news_articles: List of news article dictionaries
-            analyst_ratings: Analyst buy/sell/hold recommendations
-            insider_transactions: Recent insider trading activity
-            custom_instructions: Override the default analysis instructions
-
-        Returns:
-            Tuple of (summary, sentiment, prompt) or (None, None, None) if analysis fails
+        `previous` is the last analysis ({"date", "sentiment", "summary", "price"}), so the model can
+        say what changed. Returns (analysis, prompt); analysis is None if the LLM call failed
+        (see last_error).
         """
-        # Build the prompt
         prompt = self._build_analysis_prompt(
             company_name, ticker, status, stock_data, news_articles, analyst_ratings, insider_transactions,
-            custom_instructions=custom_instructions,
+            custom_instructions=custom_instructions, previous=previous,
         )
-
-        # Get analysis from the LLM
-        response = await self.generate(prompt, timeout=180)
-        if not response:
-            return None, None, None
-
-        # Parse the response to extract summary and sentiment
-        summary, sentiment = self._parse_analysis_response(response)
-        return summary, sentiment, prompt
+        response = await self.generate(prompt, timeout=180, json_mode=True)
+        if response is None:
+            return None, prompt
+        analysis = parse_analysis(response)
+        if analysis is None:
+            self.last_error = "the LLM's reply had no usable summary"
+        elif not previous:
+            analysis.changes = None
+        return analysis, prompt
 
     def _build_analysis_prompt(
         self,
@@ -111,6 +186,7 @@ class LLMService:
         analyst_ratings: Optional[Dict[str, Any]] = None,
         insider_transactions: Optional[List[Dict[str, Any]]] = None,
         custom_instructions: Optional[str] = None,
+        previous: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build the prompt for company analysis"""
         prompt = f"""You are a financial analyst. Analyze the following information about {company_name}"""
@@ -169,44 +245,18 @@ class LLMService:
         else:
             prompt += "\nRecent News: No recent news found\n"
 
-        # Add analysis instructions (custom or default)
+        if previous:
+            prompt += f"\nYour previous analysis ({previous['date']}"
+            if previous.get("price") is not None:
+                prompt += f", price then ${previous['price']:.2f}"
+            prompt += f"):\nSentiment: {previous.get('sentiment') or 'none'}\n{previous['summary']}\n"
+
         from ..config import settings as _settings
-        instructions = custom_instructions or _settings.ai_prompt_instructions
-        prompt += f"\n{instructions}\n"
-
+        instructions = clean_instructions(custom_instructions) or _settings.ai_prompt_instructions
+        prompt += f"\n{instructions}\n\n{OUTPUT_FORMAT}"
+        if not previous:
+            prompt += '\nThere is no previous analysis, so set "changes" to null.'
         return prompt
-
-    def _parse_analysis_response(self, response: str) -> Tuple[Optional[str], Optional[str]]:
-        """Parse the LLM response to extract summary and sentiment"""
-        try:
-            # Extract summary
-            summary = None
-            if "SUMMARY:" in response:
-                summary_start = response.index("SUMMARY:") + len("SUMMARY:")
-                sentiment_start = response.index("SENTIMENT:") if "SENTIMENT:" in response else len(response)
-                summary = response[summary_start:sentiment_start].strip()
-
-            # Extract sentiment
-            sentiment = None
-            if "SENTIMENT:" in response:
-                sentiment_start = response.index("SENTIMENT:") + len("SENTIMENT:")
-                sentiment_text = response[sentiment_start:].strip().lower()
-
-                # Extract just the sentiment word
-                for word in ["bullish", "bearish", "neutral", "mixed"]:
-                    if word in sentiment_text:
-                        sentiment = word
-                        break
-
-            # Default to neutral if parsing fails
-            if not sentiment:
-                sentiment = "neutral"
-
-            return summary, sentiment
-
-        except Exception as e:
-            logger.error(f"Failed to parse LLM response: {str(e)}")
-            return None, "neutral"
 
     async def list_models(self) -> List[str]:
         """

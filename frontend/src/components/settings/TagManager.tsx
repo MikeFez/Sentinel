@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { getTags, createTag, updateTag, deleteTag } from '../../api/client';
 import type { Tag } from '../../types';
+import { useAppData } from '../../state/AppData';
 import './TagManager.css';
 
 function TagManager() {
@@ -10,6 +11,7 @@ function TagManager() {
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [formData, setFormData] = useState({ name: '', color: '#6366f1' });
   const [loading, setLoading] = useState(false);
+  const { refresh, toast } = useAppData();
 
   useEffect(() => {
     loadTags();
@@ -35,24 +37,26 @@ function TagManager() {
         await createTag(formData);
       }
       await loadTags();
+      await refresh(); // the sidebar groups companies by tag
       resetForm();
     } catch (error) {
       console.error('Failed to save tag:', error);
-      alert('Failed to save tag');
+      toast('Failed to save tag', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (tagId: string) => {
-    if (!confirm('Are you sure you want to delete this tag?')) return;
+    if (!confirm('Delete this tag? Companies keep their data; they just lose the tag.')) return;
 
     try {
       await deleteTag(tagId);
       await loadTags();
+      await refresh();
     } catch (error) {
       console.error('Failed to delete tag:', error);
-      alert('Failed to delete tag');
+      toast('Failed to delete tag', 'error');
     }
   };
 

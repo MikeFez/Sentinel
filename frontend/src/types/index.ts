@@ -22,6 +22,20 @@ export interface Company {
   alert_above: number | null;
   alert_below: number | null;
   shares_owned: number | null;
+  /** Latest quote, refreshed every few minutes while the market is open. */
+  quote_price: number | null;
+  quote_change: number | null;
+  quote_at: string | null;
+}
+
+export interface LatestAnalysis {
+  sync_id: string;
+  synced_at: string;
+  ai_sentiment: SentimentType | null;
+  ai_summary: string;
+  ai_changes: string | null;
+  /** Sentiment of the analysis before this one. */
+  previous_sentiment: SentimentType | null;
 }
 
 export interface SyncSummary {
@@ -39,6 +53,8 @@ export interface SyncSummary {
 export interface CompanyWithSync extends Company {
   /** The newest *completed* sync. */
   latest_sync: SyncSummary | null;
+  /** The newest sync that has an AI analysis (may be older than latest_sync). */
+  latest_analysis: LatestAnalysis | null;
   is_stale: boolean;
   is_syncing: boolean;
   /** Set when the most recent sync failed; latest_sync is then older. */
@@ -103,6 +119,9 @@ export interface Sync {
   ai_sentiment: SentimentType | null;
   llm_prompt: string | null;
   error: string | null;
+  ai_key_points: string[] | null;
+  ai_risks: string[] | null;
+  ai_changes: string | null;
   status: SyncStatus;
 }
 

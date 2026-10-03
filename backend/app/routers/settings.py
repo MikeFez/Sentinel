@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 from ..database import get_db
 from ..models import Setting
 from ..schemas.setting import SettingResponse, SettingUpdate
-from ..services.llm_service import LLMService
+from ..services.llm_service import LLMService, clean_instructions
 from ..config import settings as app_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -16,6 +16,9 @@ SETTING_DEFAULTS: dict[str, str] = {
     "auto_refresh_enabled": str(app_settings.auto_refresh_enabled).lower(),
     "auto_refresh_hours": str(app_settings.auto_refresh_hours),
     "staleness_hours": str(app_settings.staleness_hours),
+    "price_refresh_minutes": str(app_settings.price_refresh_minutes),
+    "private_refresh_days": str(app_settings.private_refresh_days),
+    "history_detail_days": str(app_settings.history_detail_days),
     "ai_prompt_instructions": app_settings.ai_prompt_instructions,
 }
 
@@ -24,6 +27,14 @@ def get_setting(db: Session, key: str) -> str:
     """Get a setting value by key, falling back to SETTING_DEFAULTS."""
     setting = db.query(Setting).filter(Setting.key == key).first()
     return setting.value if setting else SETTING_DEFAULTS.get(key, "")
+
+
+def get_float(db: Session, key: str) -> float:
+    """A numeric setting; falls back to the default if the stored value isn't a number."""
+    try:
+        return float(get_setting(db, key))
+    except ValueError:
+        return float(SETTING_DEFAULTS[key])
 
 
 def set_setting(db: Session, key: str, value: str):
@@ -46,6 +57,8 @@ def get_all_settings(db: Session = Depends(get_db)):
     for key, default_value in SETTING_DEFAULTS.items():
         if key not in result:
             result[key] = default_value
+    # Show saved instructions without an old SUMMARY:/SENTIMENT: format section (it's ignored now)
+    result["ai_prompt_instructions"] = clean_instructions(result["ai_prompt_instructions"]) or SETTING_DEFAULTS["ai_prompt_instructions"]
     return result
 
 

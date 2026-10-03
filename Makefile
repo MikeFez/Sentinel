@@ -1,4 +1,4 @@
-.PHONY: help docker-build docker-up docker-down docker-logs docker-restart docker-rebuild docker-shell docker-exec db-backup db-restore db-reset clean status start stop restart deploy info logs
+.PHONY: help docker-build docker-up docker-down docker-logs docker-restart docker-rebuild docker-shell docker-exec db-backup db-restore db-reset test clean status start stop restart deploy info logs
 
 # Default target
 .DEFAULT_GOAL := help
@@ -73,6 +73,9 @@ db-reset: ## Reset database (WARNING: deletes all data)
 	fi
 
 ##@ Cleanup
+
+test: ## Run the backend tests (needs uv)
+	cd backend && uv run --no-project --with-requirements requirements.txt --with-requirements requirements-dev.txt python -m pytest -q
 
 clean: ## Clean Docker system and build cache
 	@echo "$(BLUE)Cleaning Docker build cache...$(NC)"

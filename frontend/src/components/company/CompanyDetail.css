@@ -74,3 +74,13 @@
 .status-pre_ipo { background: rgba(245, 158, 11, 0.12); color: var(--status-pre-ipo); }
 .status-private { background: rgba(139, 92, 246, 0.12); color: var(--status-private); }
 .status-acquired { background: rgba(107, 114, 128, 0.15); color: var(--status-acquired); }
+.cd-price-at { font-size: 12px; }
+
+@media (max-width: 860px) {
+  .cd-head { flex-direction: column; }
+  .cd-title-row h1 { font-size: 22px; }
+  .cd-price-value { font-size: 26px; }
+  .cd-two { grid-template-columns: 1fr; }
+  .cd-history .hide-sm { display: none; }
+  .cd-empty { flex-direction: column; align-items: flex-start; }
+}

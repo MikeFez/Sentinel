@@ -12,18 +12,19 @@ class Settings(BaseSettings):
     auto_refresh_enabled: bool = False
     auto_refresh_hours: float = 24.0
     staleness_hours: float = 24.0
+    # How often to refresh quotes for public companies while the US market is open (0 = off)
+    price_refresh_minutes: float = 5.0
+    # Private / pre-IPO companies: refresh (news only) when older than this many days (0 = never)
+    private_refresh_days: float = 7.0
+    # Keep full sync detail (news, prompts, insider data) for this many days (0 = forever)
+    history_detail_days: float = 30.0
+    # Guidance for the AI analysis. The output format is fixed by the app (see llm_service).
     ai_prompt_instructions: str = (
-        "Based on the information above, provide:\n\n"
-        "1. A concise summary (2-3 paragraphs) of recent developments and the company's current situation.\n"
-        "   - Consider stock performance, analyst sentiment, insider activity, and news developments\n"
-        "   - If analyst ratings show strong consensus (mostly buy or sell), mention it\n"
-        "   - If insider transactions show significant buying or selling, note this as it can signal confidence or concern\n"
-        "2. Overall sentiment analysis.\n\n"
-        "Format your response EXACTLY as follows:\n\n"
-        "SUMMARY:\n"
-        "[Your 2-3 paragraph summary here]\n\n"
-        "SENTIMENT: [Choose ONE: bullish, bearish, neutral, or mixed]\n\n"
-        "Be objective and balanced in your analysis. Focus on facts from the data and news provided."
+        "Write for an investor who already follows this company.\n"
+        "- Weigh stock performance, analyst consensus, insider activity and the news.\n"
+        "- If analysts show a strong consensus (mostly buy or mostly sell), say so.\n"
+        "- Call out significant insider buying or selling; it can signal confidence or concern.\n"
+        "- Be objective and balanced, and stick to facts from the data provided."
     )
 
     class Config:

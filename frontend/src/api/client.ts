@@ -187,6 +187,8 @@ export interface AnalyzeRequest {
 export interface AnalyzeResult {
   summary: string | null;
   sentiment: string | null;
+  key_points: string[];
+  risks: string[];
   prompt: string | null;
   stock_data: Record<string, unknown> | null;
 }

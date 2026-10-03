@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Newspaper, CalendarDays, Telescope, Settings, Plus, Search,
   ChevronDown, ChevronRight, Loader2, AlertTriangle, Bell, Clock,
 } from 'lucide-react';
-import { useAppData, triggeredAlert } from '../../state/AppData';
+import { useAppData, triggeredAlert, livePrice } from '../../state/AppData';
 import type { CompanyWithSync } from '../../types';
 import { pct, direction } from '../../lib/format';
 import AddCompanyModal from '../company/AddCompanyModal';
@@ -20,8 +20,9 @@ const NAV = [
 const STATUS_LABEL: Record<string, string> = { private: 'Private', pre_ipo: 'Pre-IPO', acquired: 'Acquired' };
 
 function CompanyRow({ company }: { company: CompanyWithSync }) {
-  const price = company.latest_sync?.stock_price;
-  const change = company.latest_sync?.price_change;
+  const live = livePrice(company);
+  const price = live?.price;
+  const change = live?.change;
   const alert = triggeredAlert(company);
   return (
     <NavLink to={`/companies/${company.id}`} className="sb-company">
@@ -48,7 +49,7 @@ function CompanyRow({ company }: { company: CompanyWithSync }) {
   );
 }
 
-function Sidebar() {
+function Sidebar({ open = false }: { open?: boolean }) {
   const { companies, tags, refresh } = useAppData();
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -75,7 +76,7 @@ function Sidebar() {
 
   return (
     <>
-      <aside className="sidebar">
+      <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sb-brand">Sentinel</div>
 
         <nav className="sb-nav">

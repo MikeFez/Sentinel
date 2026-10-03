@@ -7,6 +7,7 @@ import type { AnalyzeResult } from '../../api/client';
 import type { SentimentType } from '../../types';
 import SentimentBadge from '../shared/SentimentBadge';
 import './AnalyzePage.css';
+import '../company/AiAnalysisPanel.css';
 
 function AnalyzePage() {
   const [ticker, setTicker] = useState('');
@@ -182,6 +183,17 @@ function AnalyzePage() {
                 {result.summary.split('\n').map((line, i) => (
                   <p key={i}>{line}</p>
                 ))}
+              </div>
+            )}
+
+            {(result.key_points.length > 0 || result.risks.length > 0) && (
+              <div className="ai-lists">
+                {result.key_points.length > 0 && (
+                  <div><h3>Key points</h3><ul>{result.key_points.map((k, i) => <li key={i}>{k}</li>)}</ul></div>
+                )}
+                {result.risks.length > 0 && (
+                  <div><h3>Risks</h3><ul className="ai-risks">{result.risks.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
+                )}
               </div>
             )}
 

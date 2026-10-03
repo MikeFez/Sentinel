@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, AlertTriangle, Bell, Sparkles, CalendarClock, Loader2, Plus } from 'lucide-react';
 import { getHomeSummary, syncStaleCompanies, triggerSync, type UpcomingEarning } from '../../api/client';
-import { useAppData, triggeredAlert } from '../../state/AppData';
+import { useAppData, triggeredAlert, livePrice } from '../../state/AppData';
 import type { CompanyWithSync } from '../../types';
 import { money, signedMoney, pct, direction, ago, num, shortDate, inDays } from '../../lib/format';
 import SentimentBadge from '../shared/SentimentBadge';
@@ -18,6 +18,11 @@ function CompanyCell({ c }: { c: CompanyWithSync }) {
       {c.ticker && <span className="db-ticker mono">{c.ticker}</span>}
     </Link>
   );
+}
+
+function Sentiment({ c }: { c: CompanyWithSync }) {
+  const s = c.latest_analysis?.ai_sentiment;
+  return s ? <SentimentBadge sentiment={s} /> : <span className="muted">—</span>;
 }
 
 function Freshness({ c }: { c: CompanyWithSync }) {
@@ -84,9 +89,10 @@ function DashboardPage() {
 
   // Portfolio totals (positions without a price are left out of the totals)
   const rows = holdings.map((c) => {
-    const price = c.latest_sync?.stock_price ?? null;
+    const live = livePrice(c);
+    const price = live?.price ?? null;
     const value = price != null ? price * c.shares_owned! : null;
-    const change = c.latest_sync?.price_change ?? null;
+    const change = live?.change ?? null;
     const dayChange = value != null && change != null ? value - value / (1 + change / 100) : null;
     return { c, price, value, change, dayChange };
   });
@@ -95,8 +101,8 @@ function DashboardPage() {
   const totalDayPct = total - totalDay > 0 ? (totalDay / (total - totalDay)) * 100 : null;
 
   const analyses = companies
-    .filter((c) => c.latest_sync?.ai_summary)
-    .sort((a, b) => b.latest_sync!.synced_at.localeCompare(a.latest_sync!.synced_at));
+    .filter((c) => c.latest_analysis)
+    .sort((a, b) => b.latest_analysis!.synced_at.localeCompare(a.latest_analysis!.synced_at));
 
   const syncStale = async () => {
     setQueueing(true);
@@ -163,19 +169,19 @@ function DashboardPage() {
               </div>
               <table className="db-table">
                 <thead>
-                  <tr><th>Company</th><th className="r">Shares</th><th className="r">Price</th><th className="r">Today</th><th className="r">Value</th><th className="r">Weight</th><th>Sentiment</th><th className="r">Updated</th></tr>
+                  <tr><th>Company</th><th className="r hide-sm">Shares</th><th className="r hide-sm">Price</th><th className="r">Today</th><th className="r">Value</th><th className="r hide-sm">Weight</th><th className="hide-sm">Sentiment</th><th className="r hide-sm">Updated</th></tr>
                 </thead>
                 <tbody>
                   {rows.map(({ c, price, value, change }) => (
                     <tr key={c.id}>
                       <td><CompanyCell c={c} /></td>
-                      <td className="r num">{num(c.shares_owned)}</td>
-                      <td className="r num">{money(price)}</td>
+                      <td className="r num hide-sm">{num(c.shares_owned)}</td>
+                      <td className="r num hide-sm">{money(price)}</td>
                       <td className={`r num ${direction(change)}`}>{pct(change)}</td>
                       <td className="r num">{money(value, true)}</td>
-                      <td className="r num muted">{value != null && total ? `${((value / total) * 100).toFixed(0)}%` : '—'}</td>
-                      <td>{c.latest_sync?.ai_sentiment ? <SentimentBadge sentiment={c.latest_sync.ai_sentiment} /> : <span className="muted">—</span>}</td>
-                      <td className="r"><Freshness c={c} /></td>
+                      <td className="r num muted hide-sm">{value != null && total ? `${((value / total) * 100).toFixed(0)}%` : '—'}</td>
+                      <td className="hide-sm"><Sentiment c={c} /></td>
+                      <td className="r hide-sm"><Freshness c={c} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -188,22 +194,22 @@ function DashboardPage() {
               <h2>{holdings.length ? 'Watchlist' : 'Companies'}</h2>
               <table className="db-table">
                 <thead>
-                  <tr><th>Company</th><th className="r">Price</th><th className="r">Today</th><th>Sentiment</th><th className="r">Updated</th></tr>
+                  <tr><th>Company</th><th className="r">Price</th><th className="r">Today</th><th className="hide-sm">Sentiment</th><th className="r hide-sm">Updated</th></tr>
                 </thead>
                 <tbody>
                   {watchlist.map((c) => (
                     <tr key={c.id}>
                       <td><CompanyCell c={c} /></td>
-                      {c.latest_sync?.stock_price != null ? (
+                      {livePrice(c) ? (
                         <>
-                          <td className="r num">{money(c.latest_sync.stock_price)}</td>
-                          <td className={`r num ${direction(c.latest_sync.price_change)}`}>{pct(c.latest_sync.price_change)}</td>
+                          <td className="r num">{money(livePrice(c)!.price)}</td>
+                          <td className={`r num ${direction(livePrice(c)!.change)}`}>{pct(livePrice(c)!.change)}</td>
                         </>
                       ) : (
                         <td className="r muted" colSpan={2}>{STATUS_LABEL[c.status]}</td>
                       )}
-                      <td>{c.latest_sync?.ai_sentiment ? <SentimentBadge sentiment={c.latest_sync.ai_sentiment} /> : <span className="muted">—</span>}</td>
-                      <td className="r"><Freshness c={c} /></td>
+                      <td className="hide-sm"><Sentiment c={c} /></td>
+                      <td className="r hide-sm"><Freshness c={c} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -231,16 +237,21 @@ function DashboardPage() {
             <section className="card">
               <h2><Sparkles size={15} /> Latest analysis</h2>
               <div className="db-analyses">
-                {analyses.map((c) => (
-                  <Link key={c.id} to={`/companies/${c.id}`} className="db-analysis">
-                    <div className="db-analysis-head">
-                      <span className="db-company-name">{c.name}</span>
-                      {c.latest_sync!.ai_sentiment && <SentimentBadge sentiment={c.latest_sync!.ai_sentiment} />}
-                      <span className="muted db-analysis-time">{ago(c.latest_sync!.synced_at)}</span>
-                    </div>
-                    <p>{c.latest_sync!.ai_summary}</p>
-                  </Link>
-                ))}
+                {analyses.map((c) => {
+                  const la = c.latest_analysis!;
+                  const flipped = la.previous_sentiment && la.ai_sentiment && la.previous_sentiment !== la.ai_sentiment;
+                  return (
+                    <Link key={c.id} to={`/companies/${c.id}`} className="db-analysis">
+                      <div className="db-analysis-head">
+                        <span className="db-company-name">{c.name}</span>
+                        {flipped && <span className="db-flip">was {la.previous_sentiment} →</span>}
+                        {la.ai_sentiment && <SentimentBadge sentiment={la.ai_sentiment} />}
+                        <span className="muted db-analysis-time">{ago(la.synced_at)}</span>
+                      </div>
+                      <p>{la.ai_changes ?? la.ai_summary}</p>
+                    </Link>
+                  );
+                })}
               </div>
             </section>
           )}

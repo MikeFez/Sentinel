@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..config import settings as app_settings
@@ -70,26 +71,68 @@ async def run_sync(sync_id: str) -> None:
         db.close()
 
 
-def stale_company_ids(db: Session, hours: float) -> list[str]:
-    """Public companies with a ticker, no running sync, and no completed sync within `hours`.
+class Thresholds:
+    """How old a company's newest completed sync may be before it needs a refresh.
 
-    Only these are refreshed automatically: private/pre-IPO companies only have news to fetch.
+    Public companies use an hour threshold. Private / pre-IPO / acquired companies only have news,
+    so they use a slower one (private_refresh_days); None means they're never refreshed automatically.
     """
-    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
-    busy = {
-        cid
-        for (cid,) in db.query(Sync.company_id)
-        .filter(
-            (Sync.status == SyncStatus.syncing)
-            | ((Sync.status == SyncStatus.completed) & (Sync.synced_at >= cutoff))
-        )
-        .distinct()
-    }
+
+    def __init__(self, public_hours: float, private_hours: Optional[float]):
+        self.public_hours = public_hours
+        self.private_hours = private_hours
+
+    @classmethod
+    def for_display(cls, db: Session) -> "Thresholds":
+        """What counts as stale in the UI and for "Sync stale"."""
+        from ..routers.settings import get_float
+
+        days = get_float(db, "private_refresh_days")
+        return cls(get_float(db, "staleness_hours"), days * 24 if days > 0 else None)
+
+    @classmethod
+    def for_auto_refresh(cls, db: Session) -> "Thresholds":
+        from ..routers.settings import get_float
+
+        days = get_float(db, "private_refresh_days")
+        return cls(get_float(db, "auto_refresh_hours"), days * 24 if days > 0 else None)
+
+    def is_stale(self, company: Company, last_completed: Optional[datetime], now: Optional[datetime] = None) -> bool:
+        public = company.status == "public" and bool(company.ticker)
+        hours = self.public_hours if public else self.private_hours
+        if hours is None:
+            return False
+        if last_completed is None:
+            return True
+        if last_completed.tzinfo is None:
+            last_completed = last_completed.replace(tzinfo=timezone.utc)
+        return last_completed < (now or datetime.now(timezone.utc)) - timedelta(hours=hours)
+
+
+def last_completed_by_company(db: Session) -> dict:
+    return dict(
+        db.query(Sync.company_id, func.max(Sync.synced_at))
+        .filter(Sync.status == SyncStatus.completed)
+        .group_by(Sync.company_id)
+        .all()
+    )
+
+
+def stale_company_ids(db: Session, thresholds: Thresholds) -> list[str]:
+    """Companies that are stale under `thresholds` and have no sync running."""
+    running = {cid for (cid,) in db.query(Sync.company_id).filter(Sync.status == SyncStatus.syncing).distinct()}
+    last = last_completed_by_company(db)
     return [
-        cid
-        for (cid,) in db.query(Company.id).filter(Company.status == "public", Company.ticker.isnot(None))
-        if cid not in busy
+        c.id
+        for c in db.query(Company)
+        if c.id not in running and thresholds.is_stale(c, _as_datetime(last.get(c.id)))
     ]
+
+
+def _as_datetime(value) -> Optional[datetime]:
+    if value is None or isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))
 
 
 def recover_interrupted_syncs() -> None:

@@ -92,3 +92,22 @@
   white-space: pre-wrap;
   word-wrap: break-word;
 }
+
+.ai-when { font-size: 13px; font-weight: 400; }
+.ai-changes {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.1);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.ai-changes svg { flex-shrink: 0; margin-top: 3px; color: var(--accent-primary); }
+.ai-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 16px; }
+.ai-lists h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+.ai-lists ul { padding-left: 18px; display: grid; gap: 6px; font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
+.ai-lists li::marker { color: var(--success); }
+.ai-lists .ai-risks li::marker { color: var(--warning); }

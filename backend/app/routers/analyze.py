@@ -2,7 +2,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from ..database import get_db
 from ..services.stock_service import StockService
 from ..services.llm_service import LLMService
@@ -21,6 +21,8 @@ class AnalyzeRequest(BaseModel):
 class AnalyzeResponse(BaseModel):
     summary: Optional[str] = None
     sentiment: Optional[str] = None
+    key_points: List[str] = []
+    risks: List[str] = []
     prompt: Optional[str] = None
     stock_data: Optional[Dict[str, Any]] = None
 
@@ -59,7 +61,7 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
     custom_instructions = get_setting(db, "ai_prompt_instructions") or None
 
     llm = LLMService(llm_base_url, llm_model)
-    summary, sentiment, prompt = await llm.analyze_company(
+    analysis, prompt = await llm.analyze_company(
         company_name=request.company_name or request.ticker or "Unknown",
         ticker=request.ticker,
         status="public" if request.ticker else "private",
@@ -69,13 +71,14 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
         insider_transactions=insider_transactions,
         custom_instructions=custom_instructions,
     )
-
-    if summary is None and sentiment is None:
+    if analysis is None:
         raise HTTPException(status_code=502, detail=f"AI analysis failed: {llm.last_error or 'no response from the LLM'}")
 
     return AnalyzeResponse(
-        summary=summary,
-        sentiment=sentiment,
+        summary=analysis.summary,
+        sentiment=analysis.sentiment,
+        key_points=analysis.key_points,
+        risks=analysis.risks,
         prompt=prompt,
         stock_data=stock_data,
     )

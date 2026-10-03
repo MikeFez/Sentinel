@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
@@ -79,6 +80,10 @@ class SyncService:
             sync.fifty_two_wk_lo = stock_data.get("fifty_two_wk_lo")
             if stock_data.get("industry"):
                 company.industry = stock_data["industry"]
+            if stock_data.get("stock_price") is not None:
+                company.quote_price = stock_data["stock_price"]
+                company.quote_change = stock_data.get("price_change")
+                company.quote_at = datetime.now(timezone.utc)
 
             sync.raw_news = news_articles
             sync.analyst_ratings = analyst_ratings
@@ -91,7 +96,18 @@ class SyncService:
             logger.info(f"Generating AI analysis for {company.name}")
             from ..routers.settings import get_setting as _get_setting
             custom_instructions = _get_setting(self.db, "ai_prompt_instructions") or None
-            summary, sentiment, prompt = await self.llm_service.analyze_company(
+            previous = (
+                self.db.query(Sync)
+                .filter(
+                    Sync.company_id == company.id,
+                    Sync.id != sync.id,
+                    Sync.status == SyncStatus.completed,
+                    Sync.ai_summary.isnot(None),
+                )
+                .order_by(Sync.synced_at.desc())
+                .first()
+            )
+            analysis, prompt = await self.llm_service.analyze_company(
                 company_name=company.name,
                 ticker=company.ticker,
                 status=company.status.value if hasattr(company.status, "value") else company.status,
@@ -100,18 +116,24 @@ class SyncService:
                 analyst_ratings=analyst_ratings,
                 insider_transactions=insider_transactions,
                 custom_instructions=custom_instructions,
+                previous=previous and {
+                    "date": previous.synced_at.strftime("%Y-%m-%d"),
+                    "sentiment": previous.ai_sentiment.value if previous.ai_sentiment else None,
+                    "summary": previous.ai_summary,
+                    "price": previous.stock_price,
+                },
             )
 
             sync.llm_prompt = prompt
-            if summary is None and sentiment is None:
+            if analysis is None:
                 # Market data is still good; record why there's no analysis instead of a fake "neutral"
                 sync.error = f"AI analysis unavailable: {self.llm_service.last_error or 'no response from the LLM'}"
             else:
-                sync.ai_summary = summary
-                try:
-                    sync.ai_sentiment = SentimentType[sentiment] if sentiment else None
-                except KeyError:
-                    sync.ai_sentiment = SentimentType.neutral
+                sync.ai_summary = analysis.summary
+                sync.ai_sentiment = SentimentType(analysis.sentiment)
+                sync.ai_key_points = analysis.key_points
+                sync.ai_risks = analysis.risks
+                sync.ai_changes = analysis.changes
 
             sync.status = SyncStatus.completed
             self.db.commit()

@@ -1,76 +1,61 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload, load_only
 from typing import List
-from datetime import datetime, timedelta, timezone
 from ..database import get_db
 from ..models import Company, Sync, CompanyTag
 from ..models.sync import SyncStatus
 from ..schemas.company import CompanyCreate, CompanyUpdate, CompanyResponse, CompanyListResponse
 from ..schemas.tag import AssignTagsRequest
-from .settings import get_setting
+from ..services.sync_runner import Thresholds
 
 router = APIRouter(prefix="/api/companies", tags=["companies"])
 
 
 @router.get("", response_model=List[CompanyListResponse])
 def list_companies(db: Session = Depends(get_db)):
-    """List all companies with their latest sync summary and tags"""
+    """All companies with their latest data, latest analysis, quote and sync state."""
     companies = db.query(Company).options(joinedload(Company.tags)).all()
+    thresholds = Thresholds.for_display(db)
 
-    staleness_hours = float(get_setting(db, "staleness_hours") or "24")
-    stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=staleness_hours)
-
-    # Newest sync per company, and newest *completed* sync per company (what the UI shows)
+    # Per company: newest sync, newest completed sync, and the two newest analyses
     newest: dict = {}
     newest_completed: dict = {}
+    analyses: dict = {}
     light = load_only(
         Sync.id, Sync.company_id, Sync.synced_at, Sync.status, Sync.error,
-        Sync.stock_price, Sync.price_change, Sync.ai_sentiment, Sync.ai_summary,
+        Sync.stock_price, Sync.price_change, Sync.ai_sentiment, Sync.ai_summary, Sync.ai_changes,
     )
     for s in db.query(Sync).options(light).order_by(Sync.synced_at.desc()):
         newest.setdefault(s.company_id, s)
         if s.status == SyncStatus.completed:
             newest_completed.setdefault(s.company_id, s)
+            if s.ai_summary and len(analyses.setdefault(s.company_id, [])) < 2:
+                analyses[s.company_id].append(s)
 
     result = []
     for company in companies:
         latest = newest_completed.get(company.id)
         last = newest.get(company.id)
-
-        # is_stale: no completed sync, or last completed sync is older than staleness_hours
-        if latest is None:
-            is_stale = True
-        else:
-            synced_at = latest.synced_at
-            if synced_at.tzinfo is None:
-                synced_at = synced_at.replace(tzinfo=timezone.utc)
-            is_stale = synced_at < stale_cutoff
-
-        has_alert = (company.alert_above is not None) or (company.alert_below is not None)
-
-        company_dict = {
-            "id": company.id,
-            "name": company.name,
-            "ticker": company.ticker,
-            "status": company.status,
-            "description": company.description,
-            "website": company.website,
-            "industry": company.industry,
-            "alert_above": company.alert_above,
-            "alert_below": company.alert_below,
-            "shares_owned": company.shares_owned,
-            "created_at": company.created_at,
-            "updated_at": company.updated_at,
+        found = analyses.get(company.id, [])
+        analysis = found[0] if found else None
+        result.append({
+            **{col.name: getattr(company, col.name) for col in Company.__table__.columns},
             "tags": company.tags,
             "latest_sync": latest,
-            "is_stale": is_stale,
+            "latest_analysis": analysis and {
+                "sync_id": analysis.id,
+                "synced_at": analysis.synced_at,
+                "ai_sentiment": analysis.ai_sentiment,
+                "ai_summary": analysis.ai_summary,
+                "ai_changes": analysis.ai_changes,
+                "previous_sentiment": found[1].ai_sentiment if len(found) > 1 else None,
+            },
+            "is_stale": thresholds.is_stale(company, latest.synced_at if latest else None),
             "is_syncing": last is not None and last.status == SyncStatus.syncing,
             # Set when the most recent sync failed (the data shown is then from an older sync)
             "sync_error": (last.error or "Sync failed") if last is not None and last.status == SyncStatus.failed else None,
-            "has_alert": has_alert,
-        }
-        result.append(company_dict)
-
+            "has_alert": company.alert_above is not None or company.alert_below is not None,
+        })
     return result
 
 
