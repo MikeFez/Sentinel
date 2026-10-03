@@ -26,7 +26,7 @@ class Scripted:
     def __init__(self, replies):
         self.replies, self.prompts, self.last_error = list(replies), [], None
 
-    async def generate(self, prompt, timeout=60, json_mode=False):
+    async def generate(self, prompt, timeout=60, json_mode=False, purpose="other"):
         self.prompts.append(prompt)
         return self.replies.pop(0)
 
@@ -47,3 +47,25 @@ def test_8k_summary_and_llm_failure():
     assert asyncio.run(summarize(llm, "Acme", f))[0] == "The CFO resigned." and "items 5.02" in llm.prompts[0]
     down = Scripted([None]); down.last_error = "timeout"
     assert asyncio.run(summarize(down, "Acme", f)) == (None, None, "timeout")
+
+
+def test_only_recent_filings_are_ever_fetched(db, monkeypatch):
+    """Later checks must not walk back through a company's whole filing history."""
+    from datetime import date, timedelta
+
+    from app.models import Filing
+    from app.services import filings
+    from tests import factories as f
+
+    c = f.company(db, "Acme", "ACME")
+    recent, old = (date.today() - timedelta(days=d) for d in (10, 400))
+    listing = [
+        {"form": "8-K", "accession": "new-1", "filed_on": recent.isoformat(), "items": None, "url": "u1"},
+        {"form": "10-Q", "accession": "old-1", "filed_on": old.isoformat(), "items": None, "url": "u2"},
+    ]
+    monkeypatch.setattr(filings, "cik_for", lambda t: "0000000001")
+    monkeypatch.setattr(filings, "recent_filings", lambda cik: listing)
+    monkeypatch.setattr(filings, "_get", lambda client, url, name: type("R", (), {"text": "<p>text</p>"})())
+    db.add(Filing(company_id=c.id, accession="known", form="8-K", filed_on=recent.isoformat(), url="u0"))
+    db.commit()
+    assert [x["accession"] for x in filings.fetch_new(db, c)] == ["new-1"]

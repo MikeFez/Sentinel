@@ -392,3 +392,63 @@ export const getThemes = async (companyId: string): Promise<ThemeTrend[]> => {
   const response = await api.get(`/companies/${companyId}/themes`);
   return response.data;
 };
+
+// Activity (observability)
+export type ActivityKind = 'llm' | 'finnhub' | 'sec' | 'sync' | 'job';
+
+export interface ActivityOperation {
+  kind: ActivityKind;
+  name: string;
+  count: number;
+  errors: number;
+  avg_ms: number;
+  p95_ms: number | null;
+  tokens: number;
+  last_error: string | null;
+  last_at: string;
+}
+
+export interface ActivityRunning {
+  kind: ActivityKind;
+  name: string;
+  company_id: string | null;
+  company_name: string | null;
+  started: string;
+  seconds: number;
+}
+
+export interface ActivitySummary {
+  hours: number;
+  since: string;
+  bucket_seconds: number;
+  totals: Record<ActivityKind, { count: number; errors: number; busy_seconds: number }>;
+  llm_tokens: { prompt: number; completion: number };
+  series: Record<ActivityKind, number[]>;
+  operations: ActivityOperation[];
+  running: ActivityRunning[];
+  api: { method: string; route: string; count: number; errors: number; avg_ms: number; max_ms: number }[];
+}
+
+export interface ActivityEvent {
+  id: string;
+  at: string;
+  kind: ActivityKind;
+  name: string;
+  status: 'ok' | 'error';
+  duration_ms: number;
+  company_id: string | null;
+  company_name: string | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  detail: string | null;
+}
+
+export const getActivitySummary = async (hours: number): Promise<ActivitySummary> => {
+  const response = await api.get('/activity/summary', { params: { hours } });
+  return response.data;
+};
+
+export const getActivityEvents = async (kind: string | null, errorsOnly: boolean): Promise<ActivityEvent[]> => {
+  const response = await api.get('/activity/events', { params: { kind: kind || undefined, errors_only: errorsOnly, limit: 150 } });
+  return response.data;
+};

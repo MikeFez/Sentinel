@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:8080/v1"
     llm_model: str = "qwen3.8:27b"
     llm_api_key: str = ""
+    # Most LLM calls Sentinel makes at once (across syncs, filings, discover); keep below the server's slots
+    llm_max_concurrent: int = 1
     # Optional `reasoning_effort` for reasoning models (e.g. "low", "medium"); empty = server default
     llm_reasoning_effort: str = ""
     # SEC asks automated clients to identify themselves ("Name email@domain") and rejects requests

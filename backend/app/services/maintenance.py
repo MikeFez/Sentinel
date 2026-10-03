@@ -6,9 +6,12 @@ from typing import Optional
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..models import Filing, NewsArticle, NewsStory, Sync
+from ..models import ActivityEvent, Filing, NewsArticle, NewsStory, Sync
 
 logger = logging.getLogger(__name__)
+
+# Activity events (the observability log) are kept this long regardless of history_detail_days
+ACTIVITY_KEEP_DAYS = 14
 
 # Stored news articles are kept this many times longer than sync detail
 NEWS_KEEP_FACTOR = 6
@@ -23,8 +26,13 @@ def prune_history(db: Session, days: float, now: Optional[datetime] = None) -> i
 
     Returns the number of syncs and articles pruned. days <= 0 keeps everything.
     """
+    now = now or datetime.now(timezone.utc)
+    events = db.query(ActivityEvent).filter(ActivityEvent.at < now - timedelta(days=ACTIVITY_KEEP_DAYS)).delete(
+        synchronize_session=False
+    )
+    db.commit()
     if days <= 0:
-        return 0
+        return events
     cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days)
 
     newest = {}
@@ -47,7 +55,7 @@ def prune_history(db: Session, days: float, now: Optional[datetime] = None) -> i
         .filter(NewsArticle.published_at.isnot(None), NewsArticle.published_at < news_cutoff)
         .delete(synchronize_session=False)
     )
-    pruned += old_news
+    pruned += old_news + events
     # Stories whose articles are all gone
     db.query(NewsStory).filter(~NewsStory.articles.any()).delete(synchronize_session=False)
     # Only each company's newest 10-K needs its full Risk Factors text (to compare with the next one)
@@ -62,5 +70,5 @@ def prune_history(db: Session, days: float, now: Optional[datetime] = None) -> i
         with db.bind.connect() as conn:
             conn.execution_options(isolation_level="AUTOCOMMIT").execute(text("VACUUM"))
     if pruned:
-        logger.info(f"Pruned {pruned - old_news} old sync(s) and {old_news} old article(s)")
+        logger.info(f"Pruned {pruned - old_news - events} old sync(s), {old_news} article(s), {events} activity event(s)")
     return pruned

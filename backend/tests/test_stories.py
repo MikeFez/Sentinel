@@ -14,7 +14,7 @@ class Reply:
     def __init__(self, reply):
         self.reply, self.prompt, self.last_error = reply, None, None
 
-    async def generate(self, prompt, timeout=60, json_mode=False):
+    async def generate(self, prompt, timeout=60, json_mode=False, purpose="other"):
         self.prompt = prompt
         if self.reply is None:
             self.last_error = "down"

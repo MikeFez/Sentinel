@@ -13,12 +13,13 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Company, Filing
+from . import activity
 from .llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
 FORMS = ("8-K", "10-Q", "10-K")
-FIRST_RUN_DAYS = 120  # how far back to look the first time a company is checked
+LOOKBACK_DAYS = 120  # only filings this recent are ever summarized (checks run daily, so nothing new is missed)
 MAX_NEW_PER_CHECK = 4
 DOC_CHARS = 24_000  # filing text sent to the LLM
 NEW_RISK_CHARS = 12_000
@@ -30,8 +31,16 @@ def _client() -> httpx.Client:
     return httpx.Client(timeout=30, headers={"User-Agent": settings.sec_user_agent}, follow_redirects=True)
 
 
+def _get(client: httpx.Client, url: str, name: str) -> httpx.Response:
+    with activity.track("sec", name) as t:
+        r = client.get(url)
+        if r.status_code >= 400:
+            t.fail(f"HTTP {r.status_code}")
+        return r
+
+
 def _get_json(client: httpx.Client, url: str):
-    r = client.get(url)
+    r = _get(client, url, "tickers" if "company_tickers" in url else "submissions")
     if r.status_code == 403:
         raise RuntimeError("SEC rejected the request; set SEC_USER_AGENT to 'YourName your@email' (SEC's fair-access policy)")
     r.raise_for_status()
@@ -125,14 +134,13 @@ def fetch_new(db: Session, company: Company, limit_days: Optional[int] = None) -
     if not cik:
         return []
     known = {a for (a,) in db.query(Filing.accession).filter(Filing.company_id == company.id)}
-    first_run = not known
-    cutoff = (date.today() - timedelta(days=limit_days or FIRST_RUN_DAYS)).isoformat() if first_run or limit_days else None
+    cutoff = (date.today() - timedelta(days=limit_days or LOOKBACK_DAYS)).isoformat()
     filings = recent_filings(cik)
-    new = [f for f in filings if f["accession"] not in known and (cutoff is None or f["filed_on"] >= cutoff)][:MAX_NEW_PER_CHECK]
+    new = [f for f in filings if f["accession"] not in known and f["filed_on"] >= cutoff][:MAX_NEW_PER_CHECK]
     with _client() as c:
         for f in new:
             time.sleep(0.2)  # well under SEC's 10 requests a second
-            f["text"] = html_to_text(c.get(f["url"]).text)
+            f["text"] = html_to_text(_get(c, f["url"], "filing document").text)
             if f["form"] == "10-K":
                 f["risk_text"] = risk_factors(f["text"])
                 previous = next((p for p in filings if p["form"] == "10-K" and p["filed_on"] < f["filed_on"]), None)
@@ -144,7 +152,7 @@ def fetch_new(db: Session, company: Company, limit_days: Optional[int] = None) -
                 if stored:
                     f["previous_risk_text"] = stored.risk_text
                 elif previous:
-                    f["previous_risk_text"] = risk_factors(html_to_text(c.get(previous["url"]).text))
+                    f["previous_risk_text"] = risk_factors(html_to_text(_get(c, previous["url"], "filing document").text))
     return new
 
 
@@ -166,7 +174,7 @@ async def summarize(llm: LLMService, company_name: str, f: dict) -> tuple[Option
         + (f" (items {f['items']})" if f.get("items") else "")
         + f".\n\n{SUMMARY_PROMPTS[f['form']]}\nPlain prose, no preamble.\n\n--- Filing text ---\n{body[:DOC_CHARS]}"
     )
-    summary = await llm.generate(prompt, timeout=180)
+    summary = await llm.generate(prompt, timeout=180, purpose="filing summary")
     if summary is None:
         return None, None, llm.last_error
     new_risks = None
@@ -177,7 +185,7 @@ async def summarize(llm: LLMService, company_name: str, f: dict) -> tuple[Option
                 f"These risk-factor paragraphs are new in {company_name}'s latest 10-K compared with the previous one.\n"
                 "List the new or expanded risks as short phrases (at most 6). Respond with one JSON object: "
                 '{"risks": ["..."]}\n\n' + "\n\n".join(added)[:NEW_RISK_CHARS],
-                timeout=180, json_mode=True,
+                timeout=180, json_mode=True, purpose="new risk factors",
             )
             new_risks = _risk_list(reply) if reply else None
         else:
@@ -223,12 +231,14 @@ async def check_filings(session_factory, llm: LLMService, hours: float = 24) -> 
                 continue
             _last_check[company.id] = now
             try:
-                fetched = await asyncio.to_thread(_fetch_in_thread, session_factory, company.id)
+                with activity.context(company_id=company.id):
+                    fetched = await asyncio.to_thread(_fetch_in_thread, session_factory, company.id)
             except Exception as e:
                 logger.warning(f"SEC filings check failed for {company.name}: {e}")
                 continue
             for f in fetched:
-                summary, new_risks, error = await summarize(llm, company.name, f)
+                with activity.context(company_id=company.id):
+                    summary, new_risks, error = await summarize(llm, company.name, f)
                 if error:  # LLM unavailable: leave it unsaved so the next check retries it
                     logger.warning(f"Could not summarize {company.name} {f['form']} {f['filed_on']}: {error}")
                     _last_check.pop(company.id, None)

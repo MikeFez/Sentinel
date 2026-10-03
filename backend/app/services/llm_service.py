@@ -1,5 +1,10 @@
+import asyncio
+import time
+
 import httpx
 import logging
+
+from . import activity
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Dict, Any
 import json
@@ -58,6 +63,21 @@ def clean_instructions(text: Optional[str]) -> Optional[str]:
 def _eps(value: float) -> str:
     """EPS with enough precision that close values don't look equal (e.g. -0.080 vs -0.077)."""
     return f"{value:.3f}" if abs(value) < 1 else f"{value:.2f}"
+
+
+# Sentinel-wide cap on concurrent LLM calls (syncs, filings, discover...), so a shared server keeps
+# capacity for other users. One semaphore per event loop.
+_slots: dict = {}
+
+
+def _llm_slot() -> asyncio.Semaphore:
+    loop = asyncio.get_running_loop()
+    if loop not in _slots:
+        from ..config import settings
+
+        _slots.clear()  # only one loop runs at a time (tests start new ones)
+        _slots[loop] = asyncio.Semaphore(max(1, settings.llm_max_concurrent))
+    return _slots[loop]
 
 
 def _saved_reasoning_effort() -> str:
@@ -135,7 +155,7 @@ class LLMService:
         # Sent as `reasoning_effort` when set (e.g. "low" / "medium"); not every server accepts it
         self.reasoning_effort = (reasoning_effort if reasoning_effort is not None else _saved_reasoning_effort()) or None
 
-    async def generate(self, prompt: str, timeout: int = 60, json_mode: bool = False) -> Optional[str]:
+    async def generate(self, prompt: str, timeout: int = 60, json_mode: bool = False, purpose: str = "other") -> Optional[str]:
         """
         Generate text using the configured LLM.
 
@@ -144,8 +164,22 @@ class LLMService:
             timeout: Request timeout in seconds
 
         Returns:
-            Generated text or None if request fails
+            Generated text or None if request fails (see last_error)
+
+        Each call is recorded on the Activity page under `purpose`.
         """
+        waited = time.perf_counter()
+        async with _llm_slot():
+            waited = time.perf_counter() - waited
+            with activity.track("llm", purpose) as t:
+                result = await self._generate(prompt, timeout, json_mode, t)
+                if result is None:
+                    t.fail(self.last_error or "no response")
+                elif waited >= 1:
+                    t.note(f"{self.model}, waited {waited:.0f}s for a free LLM slot")
+                return result
+
+    async def _generate(self, prompt: str, timeout: int, json_mode: bool, t) -> Optional[str]:
         self.last_error = None
         body = {
             "model": self.model,
@@ -166,6 +200,9 @@ class LLMService:
                     response = await client.post(url, headers=self.headers, json=body)
                 response.raise_for_status()
                 data = response.json()
+                usage = data.get("usage") or {}
+                t.prompt_tokens, t.completion_tokens = usage.get("prompt_tokens"), usage.get("completion_tokens")
+                t.note(self.model)
                 content = data["choices"][0]["message"].get("content") or ""
                 # Some servers return reasoning inline; drop it
                 return re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
@@ -213,14 +250,14 @@ class LLMService:
             data = self._build_analysis_prompt(*args, **kwargs, data_only=True)
             cases = []
             for side in ("bull", "bear"):
-                text = await self.generate(data + CASE_PROMPT.format(side=side), timeout=300)
+                text = await self.generate(data + CASE_PROMPT.format(side=side), timeout=300, purpose=f"{side} case")
                 if text is None:
                     return None, data
                 cases.append(text.strip())
         prompt = self._build_analysis_prompt(*args, **kwargs, debate_cases=cases)
         analysis = None
         for _ in range(2):  # models occasionally return malformed JSON; one retry usually fixes it
-            response = await self.generate(prompt, timeout=300, json_mode=True)
+            response = await self.generate(prompt, timeout=300, json_mode=True, purpose="analysis")
             if response is None:
                 return None, prompt
             analysis = parse_analysis(response)

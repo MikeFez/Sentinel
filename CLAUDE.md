@@ -99,9 +99,14 @@ Timestamps are stored as naive UTC (SQLite) via `UTCDateTime` in `database.py`, 
 
 ### Scorecard, debate, filings, stories
 - `services/scorecard.py` grades each day's last sentiment call per company against the price nearest to call + horizon (±25%), from sync prices and the latest quote. Gaps in syncs leave calls ungradable. `syncs.llm_model` records the model.
-- `analysis_mode = debate` makes three sequential LLM calls (bull, bear, verdict); never run them in parallel, the LLM is shared with other services. `llm_reasoning_effort` is passed through as `reasoning_effort` when set.
+- `analysis_mode = debate` makes three LLM calls (bull, bear, verdict). They, like all LLM calls, go through the shared semaphore (see Observability). `llm_reasoning_effort` is passed through as `reasoning_effort` when set.
 - `services/filings.py` reads EDGAR (needs `SEC_USER_AGENT` with a contact or SEC returns 403), summarizes new 8-K/10-Q/10-K filings daily, and for 10-Ks diffs Risk Factors paragraphs against the previous 10-K in code before asking the LLM. Unsummarized filings aren't saved, so they're retried.
 - `services/stories.py` groups each sync's new articles into `news_stories` (one LLM call), marks material ones, and tags themes (material stories only). Material stories and filing summaries go into the analysis prompt via `SyncService.extra_context`.
+
+### Observability
+- `services/activity.py`: wrap outbound calls, syncs and jobs in `activity.track(kind, name)`; it records an `activity_events` row (kept 14 days) and Prometheus metrics (`/metrics`). `activity.context(company_id=...)` labels everything inside, across awaits and `asyncio.to_thread`. Recording never raises.
+- LLM calls take a `purpose` (shown on the Activity page). All of Sentinel's LLM calls share one semaphore (`llm_max_concurrent`, default 1) so the shared LLM server keeps capacity for other users.
+- API requests are counted in memory by a middleware (not stored).
 
 ### Tests and checks
 `make test` runs `backend/tests` with uv against a throwaway SQLite database. Add a test when changing sync, staleness, parsing, event or pruning logic. The Docker build runs the backend tests and `npm run lint` + `tsc`, so CI fails (and nothing is published) if any of them fail.

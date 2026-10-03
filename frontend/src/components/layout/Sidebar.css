@@ -125,4 +125,4 @@
 }
 .sb-empty:hover { color: var(--text-primary); }
 
-.sb-settings { margin-top: 6px; border-top: 1px solid var(--border-color); border-radius: 0 0 6px 6px; padding-top: 10px; }
+.sb-activity { margin-top: 6px; border-top: 1px solid var(--border-color); border-radius: 0 0 6px 6px; padding-top: 10px; }

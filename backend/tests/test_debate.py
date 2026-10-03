@@ -18,7 +18,7 @@ class Scripted(LLMService):
         super().__init__("http://llm/v1", "m", api_key="")
         self.replies, self.prompts = list(replies), []
 
-    async def generate(self, prompt, timeout=60, json_mode=False):
+    async def generate(self, prompt, timeout=60, json_mode=False, purpose="other"):
         self.prompts.append(prompt)
         reply = self.replies.pop(0)
         if reply is None:

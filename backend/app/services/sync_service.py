@@ -8,6 +8,7 @@ from ..models import Company, Sync, SyncStatus
 from ..models.sync import SentimentType
 from .stock_service import StockService
 from .news_service import NewsService
+from . import activity
 from .news_store import store_articles
 from .stories import group_new_articles
 from .llm_service import LLMService
@@ -25,6 +26,19 @@ class SyncService:
         self.llm_service = LLMService(llm_base_url, llm_model)
 
     async def sync_company(self, company_id: str, news_count: int = 10, existing_sync: Optional[Sync] = None) -> Optional[Sync]:
+        """Run a sync (see _sync_company), recorded on the Activity page with its company and reason."""
+        reason = (existing_sync.reason if existing_sync else None) or "sync"
+        with activity.context(company_id=company_id), activity.track("sync", reason) as t:
+            sync = await self._sync_company(company_id, news_count, existing_sync)
+            if sync is None:
+                t.fail("company not found")
+            elif sync.status == SyncStatus.failed:
+                t.fail(sync.error or "failed")
+            elif sync.error:
+                t.note(sync.error)
+            return sync
+
+    async def _sync_company(self, company_id: str, news_count: int = 10, existing_sync: Optional[Sync] = None) -> Optional[Sync]:
         """
         Synchronize data for a company.
 

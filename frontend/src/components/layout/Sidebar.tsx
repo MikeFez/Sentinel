@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Newspaper, CalendarDays, Telescope, Settings, Plus, Search,
-  ChevronDown, ChevronRight, Loader2, AlertTriangle, Bell, Clock, Target,
+  ChevronDown, ChevronRight, Loader2, AlertTriangle, Bell, Clock, Target, Activity,
 } from 'lucide-react';
 import { useAppData } from '../../state/useAppData';
 import { triggeredAlert, livePrice } from '../../lib/prices';
@@ -124,7 +124,11 @@ function Sidebar({ open = false }: { open?: boolean }) {
           {q && visible.length === 0 && <div className="sb-none">No matches</div>}
         </div>
 
-        <NavLink to="/settings" className="sb-nav-item sb-settings">
+        <NavLink to="/activity" className="sb-nav-item sb-activity">
+          <Activity size={16} />
+          <span>Activity</span>
+        </NavLink>
+        <NavLink to="/settings" className="sb-nav-item">
           <Settings size={16} />
           <span>Settings</span>
         </NavLink>

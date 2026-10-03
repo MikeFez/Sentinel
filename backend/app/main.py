@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover, transfer, insights
+from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover, transfer, insights, activity as activity_router
 from .database import SessionLocal
 from .services.sync_runner import start_sync, run_sync, stale_company_ids, recover_interrupted_syncs, Thresholds
 from .services.quote_service import refresh_quotes
@@ -16,6 +16,7 @@ from .services.maintenance import prune_history
 from .services.events import due_event_syncs, due_signal_syncs
 from .services.filings import check_filings
 from .services.llm_service import LLMService
+from .services import activity
 from .routers.settings import get_setting, get_float
 from .config import settings as app_settings
 
@@ -37,10 +38,15 @@ async def _auto_refresh_loop() -> None:
         try:
             if time.monotonic() - last_prune > _PRUNE_INTERVAL or not last_prune:
                 last_prune = time.monotonic()
-                await asyncio.to_thread(prune_history, db, get_float(db, "history_detail_days"))
+                with activity.track("job", "prune") as t:
+                    n = await asyncio.to_thread(prune_history, db, get_float(db, "history_detail_days"))
+                    t.note(f"pruned {n}")
             wanted = due_event_syncs(db, get_float(db, "move_sync_percent"), get_setting(db, "earnings_sync") == "true")
             if get_setting(db, "signal_sync") == "true" and app_settings.finnhub_api_key:
-                wanted += await asyncio.to_thread(_signal_syncs_in_thread)
+                with activity.track("job", "analyst & insider check") as t:
+                    signals = await asyncio.to_thread(_signal_syncs_in_thread)
+                    t.note(f"{len(signals)} triggered")
+                wanted += signals
             if get_setting(db, "auto_refresh_enabled") == "true":
                 wanted += [(cid, "Scheduled refresh") for cid in stale_company_ids(db, Thresholds.for_auto_refresh(db))]
             for company_id, reason in wanted:
@@ -89,7 +95,9 @@ async def _check_filings() -> None:
     if not enabled:
         return
     try:
-        saved = await check_filings(SessionLocal, llm)
+        with activity.track("job", "SEC filings check") as t:
+            saved = await check_filings(SessionLocal, llm)
+            t.note(f"{saved} new")
         if saved:
             logger.info(f"Summarized {saved} new SEC filing(s)")
     except Exception:
@@ -107,7 +115,8 @@ def _signal_syncs_in_thread() -> list:
 def _refresh_quotes_in_thread() -> None:
     db = SessionLocal()
     try:
-        refresh_quotes(db, app_settings.finnhub_api_key)
+        with activity.track("job", "quote refresh") as t:
+            t.note(f"{refresh_quotes(db, app_settings.finnhub_api_key)} updated")
     finally:
         db.close()
 
@@ -141,6 +150,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def record_api_requests(request, call_next):
+    """Count and time requests to /api (shown on the Activity page and in /metrics)."""
+    if not request.url.path.startswith("/api"):
+        return await call_next(request)
+    t0 = time.perf_counter()
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        route = request.scope.get("route")
+        activity.record_api(getattr(route, "path", "unmatched"), request.method, status, time.perf_counter() - t0)
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics():
+    """Prometheus metrics: outbound calls, LLM tokens, syncs, jobs, API requests."""
+    from fastapi import Response
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 # Include routers
 app.include_router(companies.router)
 app.include_router(tags.router)
@@ -153,6 +187,7 @@ app.include_router(news.router)
 app.include_router(discover.router)
 app.include_router(transfer.router)
 app.include_router(insights.router)
+app.include_router(activity_router.router)
 
 
 @app.get("/health")

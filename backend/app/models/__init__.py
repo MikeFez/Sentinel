@@ -6,5 +6,6 @@ from .ipo_calendar import IPOEntry
 from .news import NewsArticle
 from .filing import Filing
 from .story import NewsStory
+from .activity import ActivityEvent
 
-__all__ = ["Company", "CompanyStatus", "Tag", "CompanyTag", "Sync", "SyncStatus", "SentimentType", "Setting", "IPOEntry", "NewsArticle", "Filing", "NewsStory"]
+__all__ = ["Company", "CompanyStatus", "Tag", "CompanyTag", "Sync", "SyncStatus", "SentimentType", "Setting", "IPOEntry", "NewsArticle", "Filing", "NewsStory", "ActivityEvent"]

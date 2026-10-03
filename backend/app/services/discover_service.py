@@ -11,6 +11,7 @@ from .llm_service import LLMService
 from .stock_service import StockService
 
 from ..config import settings as app_settings_for_edgar
+from . import activity
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,15 @@ _EDGAR_HEADERS = {
     "User-Agent": app_settings_for_edgar.sec_user_agent,
     "Accept": "application/json",
 }
+
+
+async def _edgar_get(client: httpx.AsyncClient, name: str, url: str, **kwargs) -> httpx.Response:
+    """An EDGAR request, recorded on the Activity page."""
+    with activity.track("sec", name) as t:
+        resp = await client.get(url, **kwargs)
+        if resp.status_code >= 400:
+            t.fail(f"HTTP {resp.status_code}")
+        return resp
 
 
 def get_session(session_id: str) -> Optional[dict]:
@@ -153,7 +163,7 @@ Rules:
 - rationale: one concise sentence describing the theme.
 """
 
-    response = await llm.generate(prompt, timeout=60)
+    response = await llm.generate(prompt, timeout=60, purpose="theme keywords")
     if not response:
         return [theme], [], ""
 
@@ -185,7 +195,8 @@ async def _search_edgar(keywords: list[str]) -> list[dict]:
     async with httpx.AsyncClient(timeout=20, headers=_EDGAR_HEADERS) as client:
         for keyword in keywords:
             try:
-                resp = await client.get(
+                resp = await _edgar_get(
+                    client, "full-text search",
                     "https://efts.sec.gov/LATEST/search-index",
                     params={
                         "q": f'"{keyword}"',
@@ -241,9 +252,7 @@ async def _resolve_tickers(cik_companies: list[dict], stock_service: StockServic
             # CIKs from EDGAR are already zero-padded to 10 digits
             cik_padded = company["cik"].zfill(10)
             try:
-                resp = await client.get(
-                    f"https://data.sec.gov/submissions/CIK{cik_padded}.json"
-                )
+                resp = await _edgar_get(client, "submissions", f"https://data.sec.gov/submissions/CIK{cik_padded}.json")
                 if resp.status_code != 200:
                     continue
 

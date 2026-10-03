@@ -3,6 +3,8 @@ import httpx
 from typing import Optional, Dict, Any, List
 import logging
 
+from . import activity
+
 logger = logging.getLogger(__name__)
 
 _RETRY_STATUSES = {429, 500, 502, 503, 504}
@@ -30,8 +32,16 @@ class StockService:
     def _request(self, url: str, params: Dict[str, Any], timeout: int = 10) -> Any:
         """
         GET a Finnhub endpoint with exponential backoff on 429 / 5xx.
-        Raises httpx.HTTPStatusError on non-retryable failures.
+        Raises httpx.HTTPStatusError on non-retryable failures. Recorded on the Activity page.
         """
+        endpoint = url.split("/api/v1/", 1)[-1]
+        with activity.track("finnhub", endpoint) as t:
+            data, retries = self._request_with_retries(url, params, timeout)
+            if retries:
+                t.note(f"{retries} retr{'y' if retries == 1 else 'ies'} after rate limiting or server errors")
+            return data
+
+    def _request_with_retries(self, url: str, params: Dict[str, Any], timeout: int) -> tuple:
         delay = _BACKOFF_BASE
         for attempt in range(_MAX_RETRIES):
             try:
@@ -47,7 +57,7 @@ class StockService:
                 elif response.is_success:
                     _record(True)
                 response.raise_for_status()
-                return response.json()
+                return response.json(), attempt
 
             if attempt < _MAX_RETRIES - 1:
                 wait = min(delay, 32.0)
