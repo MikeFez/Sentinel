@@ -45,3 +45,10 @@
 .md-bad svg { color: var(--error); }
 .md-unknown svg { color: var(--text-muted); }
 .market-data .form-hint { font-size: 12px; color: var(--text-muted); }
+
+.backup-text { font-size: 14px; margin-bottom: 12px; }
+.backup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.backup-preview { margin-top: 14px; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; display: grid; gap: 10px; }
+.backup-preview ul { padding-left: 18px; color: var(--text-secondary); display: grid; gap: 4px; }
+.backup-check { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+.backup-check input { width: auto; }

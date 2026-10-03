@@ -148,3 +148,50 @@ def remove_tag(company_id: str, tag_id: str, db: Session = Depends(get_db)):
     ).delete()
     db.commit()
     return None
+
+
+# Peer details are fetched on demand (two Finnhub calls each) and cached for a day
+_peer_cache: dict = {}
+_PEER_CACHE_SECONDS = 24 * 3600
+
+
+@router.get("/{company_id}/peers")
+def get_peers(company_id: str, db: Session = Depends(get_db)):
+    """Comparable companies from the latest sync, with name, price and whether they're tracked."""
+    import time
+
+    from ..config import settings as app_settings
+    from ..services.stock_service import StockService
+
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    latest = (
+        db.query(Sync)
+        .options(load_only(Sync.peers))
+        .filter(Sync.company_id == company_id, Sync.status == SyncStatus.completed, Sync.peers.isnot(None))
+        .order_by(Sync.synced_at.desc())
+        .first()
+    )
+    tickers = (latest.peers if latest else None) or []
+    tracked = {c.ticker.upper(): c.id for c in db.query(Company).filter(Company.ticker.isnot(None))}
+    service = StockService(app_settings.finnhub_api_key)
+
+    peers = []
+    for ticker in tickers:
+        cached = _peer_cache.get(ticker)
+        if not cached or time.time() - cached[0] > _PEER_CACHE_SECONDS:
+            profile = service.get_profile(ticker) or {}
+            quote = service.get_quote(ticker) or {}
+            cached = (time.time(), {**profile, **quote})
+            _peer_cache[ticker] = cached
+        info = cached[1]
+        peers.append({
+            "ticker": ticker,
+            "name": info.get("name"),
+            "industry": info.get("industry"),
+            "price": info.get("price"),
+            "change": info.get("change"),
+            "tracked_company_id": tracked.get(ticker.upper()),
+        })
+    return peers

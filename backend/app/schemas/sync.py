@@ -35,6 +35,7 @@ class SyncResponse(BaseModel):
     ai_changes: Optional[str] = None
     reason: Optional[str] = None
     earnings_history: Optional[List[Dict[str, Any]]] = None
+    peers: Optional[List[str]] = None
     status: str
 
     model_config = ConfigDict(from_attributes=True)

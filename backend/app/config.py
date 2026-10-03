@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     move_sync_percent: float = 5.0
     # Re-sync after a company reports earnings
     earnings_sync: bool = True
+    # Re-sync when analyst ratings shift or an insider makes a large trade (checked daily)
+    signal_sync: bool = True
     # Keep full sync detail (news, prompts, insider data) for this many days (0 = forever)
     history_detail_days: float = 30.0
     # Guidance for the AI analysis. The output format is fixed by the app (see llm_service).

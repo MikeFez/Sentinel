@@ -92,6 +92,7 @@ class SyncService:
             sync.insider_transactions = insider_transactions
             sync.financials = data.get("financials")
             sync.earnings_history = data.get("earnings_history") or None
+            sync.peers = data.get("peers") or None
             store_articles(self.db, company.id, news_articles)
             # Save the market data now, so it survives even if the analysis below fails
             self.db.commit()
@@ -119,6 +120,7 @@ class SyncService:
                 analyst_ratings=analyst_ratings,
                 insider_transactions=insider_transactions,
                 earnings_history=sync.earnings_history,
+                peers=sync.peers,
                 custom_instructions=custom_instructions,
                 previous=previous and {
                     "date": previous.synced_at.strftime("%Y-%m-%d"),
@@ -163,6 +165,7 @@ class SyncService:
             "analyst_ratings": svc.get_analyst_recommendations(ticker),
             "earnings_dates": svc.get_earnings_calendar(ticker),
             "earnings_history": svc.get_earnings_history(ticker),
+            "peers": svc.get_peers(ticker),
             "insider_transactions": svc.get_insider_transactions(ticker),
             "financials": svc.get_basic_financials(ticker),
         }

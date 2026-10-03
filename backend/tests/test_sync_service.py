@@ -28,6 +28,9 @@ class FakeStock:
     def get_basic_financials(self, ticker):
         return {}
 
+    def get_peers(self, ticker):
+        return ["PEER1", "PEER2"]
+
     def get_earnings_history(self, ticker):
         return [{"quarter": 2, "year": 2026, "actual": 0.1, "estimate": 0.08, "surprisePercent": 25.0}]
 
@@ -60,6 +63,7 @@ def test_success_stores_structured_analysis_and_quote(db):
     assert len(s.raw_news) == 3  # honours news_count
     assert s.earnings_history[0]["actual"] == 0.1
     assert llm.calls[0]["earnings_history"] == s.earnings_history
+    assert s.peers == ["PEER1", "PEER2"] and llm.calls[0]["peers"] == ["PEER1", "PEER2"]
     from app.models import NewsArticle
     assert db.query(NewsArticle).filter(NewsArticle.company_id == c.id).count() == 3
     assert c.quote_price == 10.0 and c.industry == "Rockets"

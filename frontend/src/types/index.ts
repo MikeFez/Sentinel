@@ -125,6 +125,7 @@ export interface Sync {
   /** Why the sync ran, e.g. "Manual sync", "Price moved +6.1% today". */
   reason: string | null;
   earnings_history: EarningsQuarter[] | null;
+  peers: string[] | null;
   status: SyncStatus;
 }
 

@@ -59,6 +59,8 @@ class Sync(Base):
     reason = Column(String, nullable=True)
     # Last few quarters of reported vs estimated EPS
     earnings_history = Column(JSON, nullable=True)
+    # Tickers of comparable companies (Finnhub peers)
+    peers = Column(JSON, nullable=True)
 
     # Relationships
     company = relationship("Company", back_populates="syncs")

@@ -21,6 +21,7 @@ SETTING_DEFAULTS: dict[str, str] = {
     "history_detail_days": str(app_settings.history_detail_days),
     "move_sync_percent": str(app_settings.move_sync_percent),
     "earnings_sync": str(app_settings.earnings_sync).lower(),
+    "signal_sync": str(app_settings.signal_sync).lower(),
     "ai_prompt_instructions": app_settings.ai_prompt_instructions,
 }
 

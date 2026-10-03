@@ -1,6 +1,7 @@
 import TagManager from './TagManager';
 import LLMSettings from './LLMSettings';
 import MarketDataSettings from './MarketDataSettings';
+import BackupSettings from './BackupSettings';
 import './SettingsPage.css';
 
 function SettingsPage() {
@@ -16,6 +17,8 @@ function SettingsPage() {
         <TagManager />
 
         <MarketDataSettings />
+
+        <BackupSettings />
       </div>
     </div>
   );

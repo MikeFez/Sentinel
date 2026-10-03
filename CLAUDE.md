@@ -93,6 +93,9 @@ Timestamps are stored as naive UTC (SQLite) via `UTCDateTime` in `database.py`, 
 - Besides scheduled refreshes, the auto-refresh loop syncs a public company when its price moves `move_sync_percent` in a day (once per session) or after an earnings date's results are out. `syncs.reason` records why each sync ran.
 - News lives in `news_articles` (deduplicated by URL per company); the News page and the company News tab read from it, not from `syncs.raw_news`.
 - `stock_service.finnhub_status` holds the outcome of the last Finnhub request; Settings and the dashboard show it.
+- Analyst rating shifts and large insider trades (`due_signal_syncs` in `events.py`) are checked once a day per public company and also trigger syncs.
+- Peers come from the latest sync (`syncs.peers`); `GET /api/companies/{id}/peers` adds names and prices, cached for a day.
+- `GET /api/export` / `POST /api/import` move companies, tags and settings as JSON (merge by ticker or name, never delete; `dry_run` previews).
 
 ### Tests and checks
 `make test` runs `backend/tests` with uv against a throwaway SQLite database. Add a test when changing sync, staleness, parsing, event or pruning logic. The Docker build runs the backend tests and `npm run lint` + `tsc`, so CI fails (and nothing is published) if any of them fail.
@@ -101,4 +104,7 @@ Timestamps are stored as naive UTC (SQLite) via `UTCDateTime` in `database.py`, 
 Dashboard (`/`: portfolio, watchlist, needs-attention, earnings, latest analysis), company page (tabs: overview, news, insider trades, history), News, IPOs, Research (`/research?tab=analyze|discover`), Settings. `/portfolio`, `/analyze` and `/discover` redirect.
 
 ### Database migrations
-When adding columns to a model, write an Alembic migration in `backend/alembic/versions/`. Tables are also created via `Base.metadata.create_all()` on startup as a fallback, but migrations are the canonical path for schema changes.
+Alembic is the only thing that changes the schema. `docker-entrypoint.sh` runs `alembic upgrade head` and exits if it fails; the app never calls `create_all()` (only the tests do).
+- The chain starts at `0001_initial` (the base tables), so a brand-new database migrates normally.
+- Every migration must be safe to re-run: use `add_column` / `drop_column` / `has_table` from `app/migration_utils.py` instead of bare `op.add_column`, because older databases may already have some columns (the old entrypoint built tables without recording a version).
+- `tests/test_migrations.py` checks a new database, one built without migrations, a half-migrated one, and an existing one against the models. Add data-carrying cases there when a migration moves data.

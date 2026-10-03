@@ -316,6 +316,24 @@ class StockService:
             logger.error(f"Error fetching earnings history for {ticker}: {e}")
             return []
 
+    def get_peers(self, ticker: str, limit: int = 8) -> List[str]:
+        """Tickers of comparable companies (same industry), excluding `ticker` itself."""
+        if not self.api_key:
+            return []
+        try:
+            data = self._request(f"{self.base_url}/stock/peers", {"symbol": ticker, "token": self.api_key})
+            return [t for t in (data or []) if isinstance(t, str) and t.upper() != ticker.upper()][:limit]
+        except Exception as e:
+            logger.error(f"Error fetching peers for {ticker}: {e}")
+            return []
+
+    def get_profile(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Name and industry for a ticker, e.g. {"name": "Rocket Lab", "industry": "Aerospace & Defense"}."""
+        profile = self._fetch_profile(ticker)
+        if not profile or not profile.get("name"):
+            return None
+        return {"name": profile["name"], "industry": profile.get("finnhubIndustry")}
+
     def get_insider_transactions(self, ticker: str) -> List[Dict[str, Any]]:
         """
         Fetch insider transactions (buys/sells by executives)

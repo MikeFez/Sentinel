@@ -160,6 +160,7 @@ class LLMService:
         custom_instructions: Optional[str] = None,
         previous: Optional[Dict[str, Any]] = None,
         earnings_history: Optional[List[Dict[str, Any]]] = None,
+        peers: Optional[List[str]] = None,
     ) -> Tuple[Optional[Analysis], str]:
         """
         Analyze a company's data and news.
@@ -171,6 +172,7 @@ class LLMService:
         prompt = self._build_analysis_prompt(
             company_name, ticker, status, stock_data, news_articles, analyst_ratings, insider_transactions,
             custom_instructions=custom_instructions, previous=previous, earnings_history=earnings_history,
+            peers=peers,
         )
         response = await self.generate(prompt, timeout=180, json_mode=True)
         if response is None:
@@ -194,6 +196,7 @@ class LLMService:
         custom_instructions: Optional[str] = None,
         previous: Optional[Dict[str, Any]] = None,
         earnings_history: Optional[List[Dict[str, Any]]] = None,
+        peers: Optional[List[str]] = None,
     ) -> str:
         """Build the prompt for company analysis"""
         prompt = f"""You are a financial analyst. Analyze the following information about {company_name}"""
@@ -253,6 +256,9 @@ class LLMService:
                 if q.get("surprisePercent") is not None:
                     line += f" ({'beat' if q['surprisePercent'] >= 0 else 'miss'} by {abs(q['surprisePercent']):.1f}%)"
                 prompt += line + "\n"
+
+        if peers:
+            prompt += f"\nComparable companies (peers): {', '.join(peers)}\n"
 
         # Add news articles
         if news_articles:

@@ -274,3 +274,38 @@ export const getSyncQueue = async (): Promise<SyncQueueItem[]> => {
   const response = await api.get('/syncs/queue/active');
   return response.data;
 };
+
+// Peers
+export interface Peer {
+  ticker: string;
+  name: string | null;
+  industry: string | null;
+  price: number | null;
+  change: number | null;
+  tracked_company_id: string | null;
+}
+
+export const getPeers = async (companyId: string): Promise<Peer[]> => {
+  const response = await api.get(`/companies/${companyId}/peers`);
+  return response.data;
+};
+
+// Export / import
+export type ExportFile = Record<string, unknown> & { format: string; version: number };
+
+export interface ImportSummary {
+  created: string[];
+  updated: string[];
+  tags_created: number;
+  settings_changed: number;
+}
+
+export const exportData = async (): Promise<ExportFile> => {
+  const response = await api.get('/export');
+  return response.data;
+};
+
+export const importData = async (data: ExportFile, includeSettings: boolean, dryRun: boolean): Promise<ImportSummary> => {
+  const response = await api.post('/import', { data, include_settings: includeSettings, dry_run: dryRun });
+  return response.data;
+};

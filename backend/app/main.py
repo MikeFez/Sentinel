@@ -8,19 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover
-from .database import engine, Base, SessionLocal
+from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover, transfer
+from .database import SessionLocal
 from .services.sync_runner import start_sync, run_sync, stale_company_ids, recover_interrupted_syncs, Thresholds
 from .services.quote_service import refresh_quotes
 from .services.maintenance import prune_history
-from .services.events import due_event_syncs
+from .services.events import due_event_syncs, due_signal_syncs
 from .routers.settings import get_setting, get_float
 from .config import settings as app_settings
 
 logger = logging.getLogger(__name__)
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# The schema is managed by Alembic only (docker-entrypoint.sh runs `alembic upgrade head`)
 
 _AUTO_REFRESH_INTERVAL = 300  # seconds between staleness checks
 _QUOTE_CHECK_INTERVAL = 60  # seconds between checks of whether quotes are due
@@ -38,6 +37,8 @@ async def _auto_refresh_loop() -> None:
                 last_prune = time.monotonic()
                 await asyncio.to_thread(prune_history, db, get_float(db, "history_detail_days"))
             wanted = due_event_syncs(db, get_float(db, "move_sync_percent"), get_setting(db, "earnings_sync") == "true")
+            if get_setting(db, "signal_sync") == "true" and app_settings.finnhub_api_key:
+                wanted += await asyncio.to_thread(_signal_syncs_in_thread)
             if get_setting(db, "auto_refresh_enabled") == "true":
                 wanted += [(cid, "Scheduled refresh") for cid in stale_company_ids(db, Thresholds.for_auto_refresh(db))]
             for company_id, reason in wanted:
@@ -72,6 +73,14 @@ async def _quote_loop() -> None:
         finally:
             db.close()
         await asyncio.sleep(_QUOTE_CHECK_INTERVAL)
+
+
+def _signal_syncs_in_thread() -> list:
+    db = SessionLocal()
+    try:
+        return due_signal_syncs(db, app_settings.finnhub_api_key)
+    finally:
+        db.close()
 
 
 def _refresh_quotes_in_thread() -> None:
@@ -121,6 +130,7 @@ app.include_router(ipo.router)
 app.include_router(analyze.router)
 app.include_router(news.router)
 app.include_router(discover.router)
+app.include_router(transfer.router)
 
 
 @app.get("/health")

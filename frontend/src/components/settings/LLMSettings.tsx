@@ -21,6 +21,7 @@ function LLMSettings() {
   const [historyDays, setHistoryDays] = useState('30');
   const [moveSyncPercent, setMoveSyncPercent] = useState('5');
   const [earningsSync, setEarningsSync] = useState(true);
+  const [signalSync, setSignalSync] = useState(true);
   const { toast } = useAppData();
   const [promptInstructions, setPromptInstructions] = useState('');
   const [models, setModels] = useState<string[]>([]);
@@ -53,6 +54,7 @@ function LLMSettings() {
       setHistoryDays(settings.history_detail_days ?? '30');
       setMoveSyncPercent(settings.move_sync_percent ?? '5');
       setEarningsSync(settings.earnings_sync !== 'false');
+      setSignalSync(settings.signal_sync !== 'false');
       setPromptInstructions(settings.ai_prompt_instructions || '');
       await loadModels();
     } catch (error) {
@@ -100,6 +102,7 @@ function LLMSettings() {
         history_detail_days: historyDays,
         move_sync_percent: moveSyncPercent,
         earnings_sync: earningsSync ? 'true' : 'false',
+        signal_sync: signalSync ? 'true' : 'false',
         ai_prompt_instructions: promptInstructions,
       });
       toast('Settings saved', 'success');
@@ -310,6 +313,20 @@ function LLMSettings() {
             <span className="toggle-label">{earningsSync ? 'Enabled' : 'Disabled'}</span>
           </div>
           <small className="form-hint">Sync a company once its results are out (after 4:30 PM ET on its earnings date).</small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="signal-toggle">Re-analyze on Analyst or Insider Changes</label>
+          <div className="toggle-row">
+            <button id="signal-toggle" type="button" role="switch" aria-checked={signalSync}
+              className={`toggle-switch ${signalSync ? 'on' : ''}`} onClick={() => setSignalSync((v) => !v)}>
+              <span className="toggle-thumb" />
+            </button>
+            <span className="toggle-label">{signalSync ? 'Enabled' : 'Disabled'}</span>
+          </div>
+          <small className="form-hint">
+            Checked once a day per public company: sync when analyst ratings shift (3+ ratings or a new consensus) or an insider buys or sells $1M+ on the open market.
+          </small>
         </div>
 
         <div className="form-group">

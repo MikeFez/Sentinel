@@ -13,6 +13,8 @@ import uuid
 from alembic import op
 import sqlalchemy as sa
 
+from app.migration_utils import add_column, drop_column, has_table
+
 revision = 'a7b8c9d0e1f2'
 down_revision = 'f6a7b8c9d0e1'
 branch_labels = None
@@ -20,8 +22,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column('syncs', sa.Column('reason', sa.String(), nullable=True))
-    op.add_column('syncs', sa.Column('earnings_history', sa.JSON(), nullable=True))
+    add_column('syncs', sa.Column('reason', sa.String(), nullable=True))
+    add_column('syncs', sa.Column('earnings_history', sa.JSON(), nullable=True))
+    if has_table('news_articles'):
+        return  # already there (created outside migrations); nothing to backfill into
     op.create_table(
         'news_articles',
         sa.Column('id', sa.String(), primary_key=True),
@@ -63,5 +67,5 @@ def downgrade() -> None:
     op.drop_index('ix_news_articles_published_at', 'news_articles')
     op.drop_index('ix_news_articles_company_id', 'news_articles')
     op.drop_table('news_articles')
-    op.drop_column('syncs', 'earnings_history')
-    op.drop_column('syncs', 'reason')
+    drop_column('syncs', 'earnings_history')
+    drop_column('syncs', 'reason')

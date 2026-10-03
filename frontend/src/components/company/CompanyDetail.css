@@ -85,3 +85,6 @@
   .cd-empty { flex-direction: column; align-items: flex-start; }
 }
 .eh-summary { font-size: 13px; font-weight: 400; margin-left: auto; }
+.peer-name { font-weight: 500; }
+.peer-ticker { font-size: 11px; margin-left: 7px; }
+.peer-tracked { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--success); white-space: nowrap; }

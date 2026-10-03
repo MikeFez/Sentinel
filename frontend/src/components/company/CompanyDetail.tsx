@@ -10,6 +10,7 @@ import StockDataPanel from './StockDataPanel';
 import AiAnalysisPanel from './AiAnalysisPanel';
 import CompanyNews from './CompanyNews';
 import EarningsHistory from './EarningsHistory';
+import PeersPanel from './PeersPanel';
 import AnalystRatings from './AnalystRatings';
 import EarningsCalendar from './EarningsCalendar';
 import InsiderTransactions from './InsiderTransactions';
@@ -220,6 +221,7 @@ function CompanyDetail() {
               {latest?.earnings_dates && latest.earnings_dates.length > 0 && <EarningsCalendar earnings={latest.earnings_dates} />}
               {latest?.earnings_history && latest.earnings_history.length > 0 && <EarningsHistory quarters={latest.earnings_history} />}
             </div>
+            {company.status === 'public' && latest?.peers && latest.peers.length > 0 && <PeersPanel companyId={company.id} refreshKey={latest.id} />}
           </div>
         )}
 
