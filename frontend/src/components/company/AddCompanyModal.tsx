@@ -47,15 +47,18 @@ function AddCompanyModal({ onClose, onSuccess, company }: AddCompanyModalProps) 
     setError('');
 
     try {
-      const data: CompanyCreate = {
-        name: formData.name,
+      // Empty fields are sent as null so that clearing one (an alert, shares, the website) sticks
+      const text = (v: string) => v.trim() || null;
+      const number = (v: string) => (v.trim() ? parseFloat(v) : null);
+      const data = {
+        name: formData.name.trim(),
         status: formData.status,
-        ticker: formData.ticker || undefined,
-        description: formData.description || undefined,
-        website: formData.website || undefined,
-        shares_owned: formData.shares_owned ? parseFloat(formData.shares_owned) : undefined,
-        alert_above: formData.alert_above ? parseFloat(formData.alert_above) : undefined,
-        alert_below: formData.alert_below ? parseFloat(formData.alert_below) : undefined,
+        ticker: text(formData.ticker)?.toUpperCase() ?? null,
+        description: text(formData.description),
+        website: text(formData.website),
+        shares_owned: number(formData.shares_owned),
+        alert_above: number(formData.alert_above),
+        alert_below: number(formData.alert_below),
       };
 
       let companyId: string;
@@ -64,12 +67,12 @@ function AddCompanyModal({ onClose, onSuccess, company }: AddCompanyModalProps) 
         const updated = await updateCompany(company.id, data);
         companyId = updated.id;
       } else {
-        const created = await createCompany(data);
+        const created = await createCompany(data as CompanyCreate);
         companyId = created.id;
       }
 
-      // Assign tags
-      if (selectedTagIds.length > 0) {
+      // Always send the tag list when editing, so removing every tag works too
+      if (company || selectedTagIds.length > 0) {
         await assignTags(companyId, selectedTagIds);
       }
 

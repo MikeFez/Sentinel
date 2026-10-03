@@ -159,7 +159,7 @@ class StockService:
             logger.error(f"Error fetching metrics for {ticker}: {str(e)}")
             return None
 
-    def get_company_news(self, ticker: str, days: int = 7) -> List[Dict[str, Any]]:
+    def get_company_news(self, ticker: str, days: int = 7, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Fetch company-specific news from Finnhub
 
@@ -191,7 +191,7 @@ class StockService:
 
             # Format news for consistency
             formatted_news = []
-            for article in news[:10]:  # Limit to 10 articles
+            for article in news[:limit]:
                 formatted_news.append({
                     "title": article.get("headline", ""),
                     "url": article.get("url", ""),

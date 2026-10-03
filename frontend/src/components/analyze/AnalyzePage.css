@@ -1,7 +1,5 @@
 .analyze-page {
-  padding: 2rem;
   max-width: 900px;
-  margin: 0 auto;
 }
 
 .analyze-header {
@@ -229,3 +227,5 @@
   .analyze-page { padding: 1rem; }
   .form-row { grid-template-columns: 1fr; }
 }
+
+.analyze-track { margin-left: auto; }

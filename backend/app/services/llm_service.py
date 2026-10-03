@@ -18,6 +18,8 @@ class LLMService:
         self.model = model
         key = _settings.llm_api_key if api_key is None else api_key
         self.headers = {"Authorization": f"Bearer {key}"} if key else {}
+        # Set when generate() fails, so callers can report why
+        self.last_error: Optional[str] = None
 
     async def generate(self, prompt: str, timeout: int = 60) -> Optional[str]:
         """
@@ -30,6 +32,7 @@ class LLMService:
         Returns:
             Generated text or None if request fails
         """
+        self.last_error = None
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
@@ -47,9 +50,14 @@ class LLMService:
                 # Some servers return reasoning inline; drop it
                 return re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
 
+        except httpx.TimeoutException:
+            self.last_error = f"The LLM at {self.base_url} timed out after {timeout}s"
+        except httpx.HTTPStatusError as e:
+            self.last_error = f"The LLM returned HTTP {e.response.status_code}: {e.response.text[:200]}"
         except Exception as e:
-            logger.error(f"LLM generation failed: {str(e)}")
-            return None
+            self.last_error = f"Could not reach the LLM at {self.base_url}: {e}"
+        logger.error(f"LLM generation failed: {self.last_error}")
+        return None
 
     async def analyze_company(
         self,
@@ -85,7 +93,7 @@ class LLMService:
         )
 
         # Get analysis from the LLM
-        response = await self.generate(prompt)
+        response = await self.generate(prompt, timeout=180)
         if not response:
             return None, None, None
 

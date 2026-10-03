@@ -9,11 +9,12 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import models
-from app.database import Base
+from app.database import Base, DATABASE_URL
 from app.models import Company, Tag, CompanyTag, Sync, Setting
 
 # this is the Alembic Config object
 config = context.config
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:

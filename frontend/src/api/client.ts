@@ -126,38 +126,18 @@ export const checkLLMHealth = async (): Promise<{
 };
 
 // Home
+export interface UpcomingEarning {
+  company_id: string;
+  company_name: string;
+  ticker: string | null;
+  date: string;
+  eps_estimate: number | null;
+  quarter: number | null;
+  year: number | null;
+}
+
 export interface HomeSummary {
-  total_companies: number;
-  status_counts: Record<string, number>;
-  recent_activity: Array<{
-    sync_id: string;
-    company_id: string;
-    company_name: string;
-    company_ticker: string | null;
-    synced_at: string;
-    stock_price: number | null;
-    price_change: number | null;
-    ai_sentiment: string | null;
-    ai_summary: string | null;
-  }>;
-  stale_companies: Array<{
-    id: string;
-    name: string;
-    ticker: string | null;
-    status: string;
-    last_sync: string | null;
-    days_since_sync: number | null;
-  }>;
-  sentiment_distribution: Record<string, number>;
-  upcoming_earnings: Array<{
-    company_id: string;
-    company_name: string;
-    ticker: string | null;
-    date: string;
-    eps_estimate: number | null;
-    quarter: number | null;
-    year: number | null;
-  }>;
+  upcoming_earnings: UpcomingEarning[];
 }
 
 export interface NewsFeedArticle {

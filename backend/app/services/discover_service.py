@@ -258,7 +258,7 @@ async def _resolve_tickers(cik_companies: list[dict], stock_service: StockServic
                 name = data.get("name") or company["entity_name"]
 
                 # Pull live quote from Finnhub to confirm the ticker is active
-                stock_data = stock_service.get_stock_data(ticker) or {}
+                stock_data = await asyncio.to_thread(stock_service.get_stock_data, ticker) or {}
 
                 resolved.append({
                     "ticker": ticker,
@@ -291,9 +291,11 @@ async def _analyze_company(
     """Fetch recent news and run LLM analysis for a single company. Mutates company dict."""
     ticker = company["ticker"]
 
-    news_articles = stock_service.get_company_news(ticker, days=7)
-    analyst_ratings = stock_service.get_analyst_recommendations(ticker)
-    insider_transactions = stock_service.get_insider_transactions(ticker)
+    news_articles, analyst_ratings, insider_transactions = await asyncio.gather(
+        asyncio.to_thread(stock_service.get_company_news, ticker, 7),
+        asyncio.to_thread(stock_service.get_analyst_recommendations, ticker),
+        asyncio.to_thread(stock_service.get_insider_transactions, ticker),
+    )
 
     stock_data: Optional[dict] = None
     if company.get("stock_price"):

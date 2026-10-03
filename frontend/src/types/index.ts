@@ -30,13 +30,19 @@ export interface SyncSummary {
   stock_price: number | null;
   price_change: number | null;
   ai_sentiment: SentimentType | null;
+  ai_summary: string | null;
+  /** Set when the sync completed without an AI analysis (the reason). */
+  error: string | null;
   status: SyncStatus;
 }
 
 export interface CompanyWithSync extends Company {
+  /** The newest *completed* sync. */
   latest_sync: SyncSummary | null;
   is_stale: boolean;
   is_syncing: boolean;
+  /** Set when the most recent sync failed; latest_sync is then older. */
+  sync_error: string | null;
   has_alert: boolean;
 }
 
@@ -96,6 +102,7 @@ export interface Sync {
   ai_summary: string | null;
   ai_sentiment: SentimentType | null;
   llm_prompt: string | null;
+  error: string | null;
   status: SyncStatus;
 }
 
@@ -109,24 +116,24 @@ export interface NewsArticle {
 
 export interface CompanyCreate {
   name: string;
-  ticker?: string;
+  ticker?: string | null;
   status: CompanyStatus;
-  description?: string;
-  website?: string;
-  shares_owned?: number;
-  alert_above?: number;
-  alert_below?: number;
+  description?: string | null;
+  website?: string | null;
+  shares_owned?: number | null;
+  alert_above?: number | null;
+  alert_below?: number | null;
 }
 
 export interface CompanyUpdate {
   name?: string;
-  ticker?: string;
+  ticker?: string | null;
   status?: CompanyStatus;
-  description?: string;
-  website?: string;
-  shares_owned?: number;
-  alert_above?: number;
-  alert_below?: number;
+  description?: string | null;
+  website?: string | null;
+  shares_owned?: number | null;
+  alert_above?: number | null;
+  alert_below?: number | null;
 }
 
 export interface TagCreate {

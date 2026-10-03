@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Telescope, Search, Plus, Check, ChevronDown, ChevronUp, Loader, Sparkles } from 'lucide-react';
+import { Search, Plus, Check, ChevronDown, ChevronUp, Loader, Sparkles } from 'lucide-react';
 import { startDiscover, getDiscoverSession, analyzeDiscoverCompany, createCompany } from '../../api/client';
+import { useAppData } from '../../state/AppData';
 import type { DiscoverSession, DiscoverCompany } from '../../api/client';
 import type { SentimentType } from '../../types';
 import SentimentBadge from '../shared/SentimentBadge';
@@ -175,6 +176,7 @@ function DiscoverPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
+  const { companies: tracked, refresh, toast } = useAppData();
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -252,12 +254,19 @@ function DiscoverPage() {
   };
 
   const handleWatch = async (company: DiscoverCompany) => {
-    const created = await createCompany({
-      name: company.name,
-      ticker: company.ticker,
-      status: 'public',
-    });
-    navigate(`/companies/${created.id}`);
+    const existing = tracked.find((c) => c.ticker?.toUpperCase() === company.ticker.toUpperCase());
+    if (existing) {
+      navigate(`/companies/${existing.id}`);
+      return;
+    }
+    try {
+      const created = await createCompany({ name: company.name, ticker: company.ticker, status: 'public' });
+      await refresh();
+      toast(`Now tracking ${created.name}`, 'success');
+      navigate(`/companies/${created.id}`);
+    } catch {
+      toast(`Could not add ${company.name}`, 'error');
+    }
   };
 
   const toggleSort = (key: SortKey) => {
@@ -284,18 +293,6 @@ function DiscoverPage() {
 
   return (
     <div className="discover-page">
-      <div className="discover-header">
-        <div className="discover-header-content">
-          <Telescope size={32} className="discover-icon" />
-          <div>
-            <h1>Domain Discovery</h1>
-            <p className="discover-subtitle">
-              Enter a theme or sector to find relevant public companies, then analyze the ones you care about
-            </p>
-          </div>
-        </div>
-      </div>
-
       <form className="discover-form" onSubmit={handleSubmit}>
         <div className="discover-input-row">
           <input

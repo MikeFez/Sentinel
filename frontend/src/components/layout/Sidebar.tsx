@@ -1,261 +1,139 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Home, Plus, Search, Settings, ChevronDown, ChevronRight, Calendar, Bell, Loader, Briefcase, Sparkles, Newspaper, Telescope } from 'lucide-react';
-import { getCompanies, getTags } from '../../api/client';
-import type { CompanyWithSync, Tag } from '../../types';
+import { useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import {
+  LayoutDashboard, Newspaper, CalendarDays, Telescope, Settings, Plus, Search,
+  ChevronDown, ChevronRight, Loader2, AlertTriangle, Bell, Clock,
+} from 'lucide-react';
+import { useAppData, triggeredAlert } from '../../state/AppData';
+import type { CompanyWithSync } from '../../types';
+import { pct, direction } from '../../lib/format';
 import AddCompanyModal from '../company/AddCompanyModal';
 import './Sidebar.css';
 
-function Sidebar() {
-  const [companies, setCompanies] = useState<CompanyWithSync[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+const NAV = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/news', label: 'News', icon: Newspaper },
+  { to: '/ipo-calendar', label: 'IPOs', icon: CalendarDays },
+  { to: '/research', label: 'Research', icon: Telescope },
+];
 
-  useEffect(() => {
-    loadData();
-  }, []);
+const STATUS_LABEL: Record<string, string> = { private: 'Private', pre_ipo: 'Pre-IPO', acquired: 'Acquired' };
 
-  const loadData = async () => {
-    try {
-      const [companiesData, tagsData] = await Promise.all([
-        getCompanies(),
-        getTags(),
-      ]);
-      setCompanies(companiesData);
-      setTags(tagsData);
-      // Expand all tags by default
-      setExpandedTags(new Set(tagsData.map((tag) => tag.id)));
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleTag = (tagId: string) => {
-    const newExpanded = new Set(expandedTags);
-    if (newExpanded.has(tagId)) {
-      newExpanded.delete(tagId);
-    } else {
-      newExpanded.add(tagId);
-    }
-    setExpandedTags(newExpanded);
-  };
-
-  const getCompanyStatusDot = (status: string) => {
-    const colors = {
-      public: 'var(--status-public)',
-      pre_ipo: 'var(--status-pre-ipo)',
-      private: 'var(--status-private)',
-      acquired: 'var(--status-acquired)',
-    };
-    return colors[status as keyof typeof colors] || 'var(--text-muted)';
-  };
-
-  const filteredCompanies = companies.filter((company) =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.ticker?.toLowerCase().includes(searchQuery.toLowerCase())
+function CompanyRow({ company }: { company: CompanyWithSync }) {
+  const price = company.latest_sync?.stock_price;
+  const change = company.latest_sync?.price_change;
+  const alert = triggeredAlert(company);
+  return (
+    <NavLink to={`/companies/${company.id}`} className="sb-company">
+      <div className="sb-company-name">
+        <span className="sb-name">{company.name}</span>
+        {company.ticker && <span className="sb-ticker">{company.ticker}</span>}
+      </div>
+      <div className="sb-company-right">
+        {company.is_syncing ? (
+          <Loader2 size={12} className="spinning sb-icon-muted" aria-label="Syncing" />
+        ) : company.sync_error ? (
+          <AlertTriangle size={12} className="sb-icon-error" aria-label="Last sync failed" />
+        ) : company.is_stale ? (
+          <Clock size={12} className="sb-icon-muted" aria-label="Data is stale" />
+        ) : null}
+        {alert && <Bell size={12} className="sb-icon-alert" aria-label="Price alert triggered" />}
+        {price != null ? (
+          <span className={`sb-change ${direction(change)}`}>{pct(change)}</span>
+        ) : (
+          <span className="sb-status">{STATUS_LABEL[company.status] ?? ''}</span>
+        )}
+      </div>
+    </NavLink>
   );
+}
 
-  // Group companies by tags
-  const companiesByTag: Record<string, CompanyWithSync[]> = {};
-  const untaggedCompanies: CompanyWithSync[] = [];
+function Sidebar() {
+  const { companies, tags, refresh } = useAppData();
+  const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [showAdd, setShowAdd] = useState(false);
 
-  filteredCompanies.forEach((company) => {
-    if (company.tags.length === 0) {
-      untaggedCompanies.push(company);
-    } else {
-      company.tags.forEach((tag) => {
-        if (!companiesByTag[tag.id]) {
-          companiesByTag[tag.id] = [];
-        }
-        companiesByTag[tag.id].push(company);
-      });
-    }
-  });
+  const q = query.trim().toLowerCase();
+  const visible = companies
+    .filter((c) => !q || c.name.toLowerCase().includes(q) || c.ticker?.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  const handleCompanyAdded = () => {
-    loadData();
-    setShowAddModal(false);
-  };
+  const groups = tags
+    .map((tag) => ({ id: tag.id, name: tag.name, color: tag.color, items: visible.filter((c) => c.tags.some((t) => t.id === tag.id)) }))
+    .filter((g) => g.items.length > 0);
+  const untagged = visible.filter((c) => c.tags.length === 0);
+  if (untagged.length) groups.push({ id: 'untagged', name: groups.length ? 'Other' : 'Companies', color: '', items: untagged });
 
-  if (loading) {
-    return (
-      <aside className="sidebar">
-        <div className="sidebar-loading">Loading...</div>
-      </aside>
-    );
-  }
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <>
       <aside className="sidebar">
-        <div className="sidebar-header">
-          <h1 className="sidebar-title">Sentinel</h1>
-          <button
-            className="icon-button"
-            onClick={() => navigate('/settings')}
-            title="Settings"
-          >
-            <Settings size={18} />
+        <div className="sb-brand">Sentinel</div>
+
+        <nav className="sb-nav">
+          {NAV.map(({ to, label, icon: Icon, end }) => (
+            <NavLink key={to} to={to} end={end} className="sb-nav-item">
+              <Icon size={16} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="sb-section-head">
+          <span>Companies</span>
+          <button className="sb-add" onClick={() => setShowAdd(true)} title="Add company" aria-label="Add company">
+            <Plus size={15} />
           </button>
         </div>
 
-        <Link to="/" className="sidebar-home-button">
-          <Home size={18} />
-          <span>Home</span>
-        </Link>
+        {companies.length > 5 && (
+          <div className="sb-search">
+            <Search size={14} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter" aria-label="Filter companies" />
+          </div>
+        )}
 
-        <Link to="/ipo-calendar" className="sidebar-home-button">
-          <Calendar size={18} />
-          <span>IPO Calendar</span>
-        </Link>
-
-        <Link to="/news" className="sidebar-home-button">
-          <Newspaper size={18} />
-          <span>News Feed</span>
-        </Link>
-
-        <Link to="/portfolio" className="sidebar-home-button">
-          <Briefcase size={18} />
-          <span>Portfolio</span>
-        </Link>
-
-        <Link to="/analyze" className="sidebar-home-button">
-          <Sparkles size={18} />
-          <span>Analyze</span>
-        </Link>
-
-        <Link to="/discover" className="sidebar-home-button">
-          <Telescope size={18} />
-          <span>Discover</span>
-        </Link>
-
-        <div className="sidebar-search">
-          <Search size={16} className="search-icon" />
-          <input
-            type="text"
-            placeholder="Search companies..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
-        </div>
-
-        <div className="sidebar-companies">
-          {tags.map((tag) => {
-            const tagCompanies = companiesByTag[tag.id] || [];
-            if (tagCompanies.length === 0) return null;
-
-            const isExpanded = expandedTags.has(tag.id);
-
-            return (
-              <div key={tag.id} className="tag-group">
-                <button
-                  className="tag-header"
-                  onClick={() => toggleTag(tag.id)}
-                >
-                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  <span
-                    className="tag-dot"
-                    style={{ backgroundColor: tag.color }}
-                  />
-                  <span className="tag-name">{tag.name}</span>
-                  <span className="tag-count">{tagCompanies.length}</span>
-                </button>
-                {isExpanded && (
-                  <div className="tag-companies">
-                    {tagCompanies.map((company) => (
-                      <Link
-                        key={company.id}
-                        to={`/companies/${company.id}`}
-                        className="company-item"
-                      >
-                        <span
-                          className="status-dot"
-                          style={{ backgroundColor: getCompanyStatusDot(company.status) }}
-                        />
-                        <div className="company-info">
-                          <div className="company-name">{company.name}</div>
-                          {company.ticker && (
-                            <div className="company-ticker">{company.ticker}</div>
-                          )}
-                        </div>
-                        <div className="company-indicators">
-                          {company.is_syncing && <Loader size={10} className="indicator-syncing" />}
-                          {!company.is_syncing && company.is_stale && <span className="indicator-stale" title="Data is stale" />}
-                          {company.has_alert && <Bell size={10} className="indicator-alert" />}
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {untaggedCompanies.length > 0 && (
-            <div className="tag-group">
-              <button
-                className="tag-header"
-                onClick={() => toggleTag('untagged')}
-              >
-                {expandedTags.has('untagged') ? (
-                  <ChevronDown size={16} />
-                ) : (
-                  <ChevronRight size={16} />
-                )}
-                <span className="tag-name">Untagged</span>
-                <span className="tag-count">{untaggedCompanies.length}</span>
-              </button>
-              {expandedTags.has('untagged') && (
-                <div className="tag-companies">
-                  {untaggedCompanies.map((company) => (
-                    <Link
-                      key={company.id}
-                      to={`/companies/${company.id}`}
-                      className="company-item"
-                    >
-                      <span
-                        className="status-dot"
-                        style={{ backgroundColor: getCompanyStatusDot(company.status) }}
-                      />
-                      <div className="company-info">
-                        <div className="company-name">{company.name}</div>
-                        {company.ticker && (
-                          <div className="company-ticker">{company.ticker}</div>
-                        )}
-                      </div>
-                      <div className="company-indicators">
-                        {company.is_syncing && <Loader size={10} className="indicator-syncing" />}
-                        {!company.is_syncing && company.is_stale && <span className="indicator-stale" title="Data is stale" />}
-                        {company.has_alert && <Bell size={10} className="indicator-alert" />}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+        <div className="sb-companies">
+          {companies.length === 0 && (
+            <button className="sb-empty" onClick={() => setShowAdd(true)}>
+              <Plus size={14} /> Add your first company
+            </button>
           )}
+          {groups.map((g) => (
+            <div key={g.id} className="sb-group">
+              <button className="sb-group-head" onClick={() => toggle(g.id)}>
+                {collapsed.has(g.id) ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                {g.color && <span className="sb-tag-dot" style={{ backgroundColor: g.color }} />}
+                <span className="sb-group-name">{g.name}</span>
+                <span className="sb-group-count">{g.items.length}</span>
+              </button>
+              {!collapsed.has(g.id) && g.items.map((c) => <CompanyRow key={c.id} company={c} />)}
+            </div>
+          ))}
+          {q && visible.length === 0 && <div className="sb-none">No matches</div>}
         </div>
 
-        <button
-          className="add-company-button"
-          onClick={() => setShowAddModal(true)}
-        >
-          <Plus size={18} />
-          <span>Add Company</span>
-        </button>
+        <NavLink to="/settings" className="sb-nav-item sb-settings">
+          <Settings size={16} />
+          <span>Settings</span>
+        </NavLink>
       </aside>
 
-      {showAddModal && (
+      {showAdd && (
         <AddCompanyModal
-          onClose={() => setShowAddModal(false)}
-          onSuccess={handleCompanyAdded}
+          onClose={() => setShowAdd(false)}
+          onSuccess={() => {
+            setShowAdd(false);
+            refresh();
+          }}
         />
       )}
     </>

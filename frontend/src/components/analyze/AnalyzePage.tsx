@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Sparkles, Search } from 'lucide-react';
-import { runAnalysis } from '../../api/client';
+import { useNavigate } from 'react-router-dom';
+import { Search, Plus, ArrowRight } from 'lucide-react';
+import { runAnalysis, createCompany } from '../../api/client';
+import { useAppData } from '../../state/AppData';
 import type { AnalyzeResult } from '../../api/client';
 import type { SentimentType } from '../../types';
 import SentimentBadge from '../shared/SentimentBadge';
@@ -14,6 +16,22 @@ function AnalyzePage() {
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [error, setError] = useState('');
+  const [analyzed, setAnalyzed] = useState<{ ticker: string; name: string } | null>(null);
+  const { companies, refresh, toast } = useAppData();
+  const navigate = useNavigate();
+  const tracked = analyzed?.ticker ? companies.find((c) => c.ticker?.toUpperCase() === analyzed.ticker) : undefined;
+
+  const track = async () => {
+    if (!analyzed?.ticker) return;
+    try {
+      const created = await createCompany({ name: analyzed.name || analyzed.ticker, ticker: analyzed.ticker, status: 'public' });
+      await refresh();
+      toast(`Now tracking ${created.name}`, 'success');
+      navigate(`/companies/${created.id}`);
+    } catch {
+      toast('Could not add the company', 'error');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +49,7 @@ function AnalyzePage() {
         notes: notes.trim() || undefined,
       });
       setResult(data);
+      setAnalyzed({ ticker: ticker.trim().toUpperCase(), name: companyName.trim() });
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Analysis failed. Check the LLM endpoint is reachable.');
     } finally {
@@ -42,18 +61,6 @@ function AnalyzePage() {
 
   return (
     <div className="analyze-page">
-      <div className="analyze-header">
-        <div className="analyze-header-content">
-          <Sparkles size={32} className="analyze-icon" />
-          <div>
-            <h1>Ad-hoc Analysis</h1>
-            <p className="analyze-subtitle">
-              Run a one-off AI analysis on any ticker or topic without saving it
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div className="analyze-layout">
         <div className="analyze-form-card">
           <form onSubmit={handleSubmit}>
@@ -122,6 +129,15 @@ function AnalyzePage() {
               {result.sentiment && (
                 <SentimentBadge sentiment={result.sentiment as SentimentType} />
               )}
+              {analyzed?.ticker && (tracked ? (
+                <button className="btn btn-secondary btn-sm analyze-track" onClick={() => navigate(`/companies/${tracked.id}`)}>
+                  Open {tracked.name} <ArrowRight size={14} />
+                </button>
+              ) : (
+                <button className="btn btn-primary btn-sm analyze-track" onClick={track}>
+                  <Plus size={14} /> Track {analyzed.ticker}
+                </button>
+              ))}
             </div>
 
             {stockData && (

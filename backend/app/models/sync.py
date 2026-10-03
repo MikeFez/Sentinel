@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 import uuid
-from ..database import Base
+from ..database import Base, UTCDateTime
 
 
 class SyncStatus(str, enum.Enum):
@@ -25,7 +25,7 @@ class Sync(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     company_id = Column(String, ForeignKey("companies.id"), nullable=False)
-    synced_at = Column(DateTime(timezone=True), server_default=func.now())
+    synced_at = Column(UTCDateTime, server_default=func.now())
     stock_price = Column(Float, nullable=True)
     price_change = Column(Float, nullable=True)
     market_cap = Column(String, nullable=True)
@@ -46,6 +46,9 @@ class Sync(Base):
 
     # Store the actual LLM prompt for transparency
     llm_prompt = Column(Text, nullable=True)
+
+    # Why the sync failed, or why part of it (e.g. the AI analysis) didn't complete
+    error = Column(Text, nullable=True)
 
     # Relationships
     company = relationship("Company", back_populates="syncs")

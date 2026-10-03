@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 from typing import List
 from datetime import datetime, timedelta, timezone
 from ..database import get_db
@@ -21,37 +20,25 @@ def list_companies(db: Session = Depends(get_db)):
     staleness_hours = float(get_setting(db, "staleness_hours") or "24")
     stale_cutoff = datetime.now(timezone.utc) - timedelta(hours=staleness_hours)
 
-    # Fetch latest sync per company in a single query
-    max_sync_subq = (
-        db.query(Sync.company_id, func.max(Sync.synced_at).label("max_synced_at"))
-        .group_by(Sync.company_id)
-        .subquery()
+    # Newest sync per company, and newest *completed* sync per company (what the UI shows)
+    newest: dict = {}
+    newest_completed: dict = {}
+    light = load_only(
+        Sync.id, Sync.company_id, Sync.synced_at, Sync.status, Sync.error,
+        Sync.stock_price, Sync.price_change, Sync.ai_sentiment, Sync.ai_summary,
     )
-    latest_syncs = (
-        db.query(Sync)
-        .join(
-            max_sync_subq,
-            (Sync.company_id == max_sync_subq.c.company_id)
-            & (Sync.synced_at == max_sync_subq.c.max_synced_at),
-        )
-        .all()
-    )
-    latest_sync_map = {s.company_id: s for s in latest_syncs}
-
-    # Companies currently syncing
-    syncing_ids = {
-        s.company_id
-        for s in db.query(Sync.company_id)
-        .filter(Sync.status == SyncStatus.syncing)
-        .all()
-    }
+    for s in db.query(Sync).options(light).order_by(Sync.synced_at.desc()):
+        newest.setdefault(s.company_id, s)
+        if s.status == SyncStatus.completed:
+            newest_completed.setdefault(s.company_id, s)
 
     result = []
     for company in companies:
-        latest = latest_sync_map.get(company.id)
+        latest = newest_completed.get(company.id)
+        last = newest.get(company.id)
 
         # is_stale: no completed sync, or last completed sync is older than staleness_hours
-        if latest is None or latest.status != SyncStatus.completed:
+        if latest is None:
             is_stale = True
         else:
             synced_at = latest.synced_at
@@ -77,7 +64,9 @@ def list_companies(db: Session = Depends(get_db)):
             "tags": company.tags,
             "latest_sync": latest,
             "is_stale": is_stale,
-            "is_syncing": company.id in syncing_ids,
+            "is_syncing": last is not None and last.status == SyncStatus.syncing,
+            # Set when the most recent sync failed (the data shown is then from an older sync)
+            "sync_error": (last.error or "Sync failed") if last is not None and last.status == SyncStatus.failed else None,
             "has_alert": has_alert,
         }
         result.append(company_dict)

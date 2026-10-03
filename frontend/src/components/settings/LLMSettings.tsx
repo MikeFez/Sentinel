@@ -229,7 +229,7 @@ function LLMSettings() {
             </span>
           </div>
           <small className="form-hint">
-            Automatically re-sync companies when their data becomes stale
+            Automatically re-sync public companies (with a ticker) when their data becomes stale
           </small>
         </div>
 
@@ -261,7 +261,7 @@ function LLMSettings() {
             onChange={(e) => setStalenessHours(e.target.value)}
           />
           <small className="form-hint">
-            Show a red dot in the sidebar when a company's last sync is older than this many hours
+            Data older than this many hours counts as stale: it's flagged in the sidebar and dashboard, and "Sync stale" refreshes it
           </small>
         </div>
 

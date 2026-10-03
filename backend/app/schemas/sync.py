@@ -29,6 +29,7 @@ class SyncResponse(BaseModel):
     earnings_dates: Optional[List[Dict[str, Any]]] = None
     insider_transactions: Optional[List[Dict[str, Any]]] = None
     financials: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
     status: str
 
     class Config:

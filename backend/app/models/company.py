@@ -3,7 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 import uuid
-from ..database import Base
+from ..database import Base, UTCDateTime
 
 
 class CompanyStatus(str, enum.Enum):
@@ -22,8 +22,8 @@ class Company(Base):
     status = Column(Enum(CompanyStatus), nullable=False, default=CompanyStatus.public)
     description = Column(Text, nullable=True)
     website = Column(String, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at = Column(UTCDateTime, server_default=func.now())
+    updated_at = Column(UTCDateTime, onupdate=func.now())
 
     # Industry (populated from Finnhub profile during sync)
     industry = Column(String, nullable=True)

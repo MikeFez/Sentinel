@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, DateTime, Float, Integer
 from sqlalchemy.sql import func
 import uuid
-from ..database import Base
+from ..database import Base, UTCDateTime
 
 
 class IPOEntry(Base):
@@ -19,4 +19,4 @@ class IPOEntry(Base):
     total_shares_value = Column(Float, nullable=True)  # Total offering size in dollars
     debut_price = Column(Float, nullable=True)  # Opening price on first trading day
     current_price = Column(Float, nullable=True)  # Latest market price
-    fetched_at = Column(DateTime(timezone=True), server_default=func.now())
+    fetched_at = Column(UTCDateTime, server_default=func.now())

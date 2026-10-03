@@ -42,11 +42,14 @@ backend/
     schemas/           # Pydantic request/response schemas
     routers/           # API route handlers
     services/          # Business logic (sync, stock, llm, news)
+      sync_runner.py   # start_sync/run_sync: the only way syncs are started (API, "sync stale", auto-refresh)
   alembic/             # Database migrations
     versions/          # Migration scripts (committed)
 
 frontend/
   src/
+    state/AppData.tsx  # Shared company/tag list (polled; fast while anything syncs) + toasts
+    lib/format.ts      # Money, %, relative times; parseTime() for server timestamps
     api/client.ts      # All API calls in one place
     types/index.ts     # TypeScript interfaces mirroring backend schemas
     components/        # React components
@@ -64,8 +67,18 @@ Global styles use plain CSS (no modules). Specificity collisions have bitten us 
 ### Background sync
 `main.py` runs `_auto_refresh_loop()` as a lifespan task. It wakes every 5 minutes and syncs stale **public companies with tickers** only. Non-public companies show the staleness indicator but are never auto-synced.
 
-### Sync polling
-Triggered syncs return a `202 Accepted` with a `Sync` record in `syncing` status. The frontend polls `GET /api/syncs/{id}` every 2 seconds until `status != "syncing"`, then reloads data.
+### Syncs
+- Start syncs only through `services/sync_runner.py` (`start_sync` + `run_sync`). It refuses a second sync for a company that already has one running, and at startup marks syncs left in `syncing` by a restart as failed.
+- Finnhub calls are blocking (`httpx.Client` + `time.sleep` back-off): call them via `asyncio.to_thread` from async code, or they freeze the whole server.
+- A sync is `failed` (with `error`) only when fetching data fails. If only the LLM fails, it is `completed` with the market data and `error = "AI analysis unavailable: ..."`; no sentiment is invented.
+- `GET /api/companies` returns the newest *completed* sync as `latest_sync`, plus `is_syncing` and `sync_error` (newest sync failed). The UI shows the newest analysis that exists, which may be older than the newest data.
+- `POST /api/companies/{id}/sync` returns `202` with the running sync. The frontend doesn't poll it directly: `AppData` polls the company list every 3 s while any company is syncing and toasts when one finishes.
+
+### Times
+Timestamps are stored as naive UTC (SQLite) via `UTCDateTime` in `database.py`, which reads them back as aware UTC, so the API sends `...Z`. Use `parseTime`/`ago` from `lib/format.ts` on the frontend, not `new Date(str)` math.
+
+### Pages
+Dashboard (`/`: portfolio, watchlist, needs-attention, earnings, latest analysis), company page (tabs: overview, news, insider trades, history), News, IPOs, Research (`/research?tab=analyze|discover`), Settings. `/portfolio`, `/analyze` and `/discover` redirect.
 
 ### Database migrations
 When adding columns to a model, write an Alembic migration in `backend/alembic/versions/`. Tables are also created via `Base.metadata.create_all()` on startup as a fallback, but migrations are the canonical path for schema changes.

@@ -1,0 +1,67 @@
+.db-welcome { max-width: 520px; margin: 12vh auto 0; text-align: center; display: grid; gap: 14px; justify-items: center; }
+.db-welcome h1 { font-size: 26px; }
+
+.db-attention { margin-bottom: 16px; border-color: rgba(239, 68, 68, 0.35); }
+.db-attention-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 14px;
+  border-top: 1px solid var(--border-color);
+}
+.db-attention-row:first-of-type { border-top: none; }
+.db-attention-text { flex: 1; color: var(--text-secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-icon-alert { color: var(--warning); }
+
+.db-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.db-main, .db-side { display: grid; gap: 16px; }
+@media (max-width: 1100px) { .db-grid { grid-template-columns: 1fr; } }
+
+.db-portfolio-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.db-total { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; }
+.db-total-value { font-size: 22px; font-weight: 600; }
+
+.db-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.db-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+.db-table td { padding: 10px 8px; border-bottom: 1px solid var(--border-color); }
+.db-table tr:last-child td { border-bottom: none; }
+.db-table .r { text-align: right; }
+.db-table th:first-child, .db-table td:first-child { padding-left: 0; }
+.db-table th:last-child, .db-table td:last-child { padding-right: 0; }
+
+.db-company { display: inline-flex; align-items: baseline; gap: 7px; color: var(--text-primary); }
+.db-company:hover { text-decoration: none; }
+.db-company:hover .db-company-name { text-decoration: underline; }
+.db-company-name { font-weight: 500; }
+.db-ticker { font-size: 11px; color: var(--text-muted); }
+
+.db-fresh { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; }
+.db-stale { color: var(--warning); }
+
+.db-list { list-style: none; display: grid; gap: 8px; font-size: 14px; }
+.db-list li { display: flex; justify-content: space-between; gap: 10px; }
+.db-list a { color: var(--text-primary); }
+
+.db-analyses { display: grid; gap: 4px; margin: 0 -8px; }
+.db-analysis { display: block; padding: 8px; border-radius: 6px; color: var(--text-primary); }
+.db-analysis:hover { background: var(--bg-hover); text-decoration: none; }
+.db-analysis-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.db-analysis-time { margin-left: auto; font-size: 12px; }
+.db-analysis p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

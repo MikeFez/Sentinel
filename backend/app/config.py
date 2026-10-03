@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    database_url: str = "sqlite:///./data/sentinel.db"
     # Any OpenAI-compatible endpoint, including the /v1 suffix
     llm_base_url: str = "http://localhost:8080/v1"
     llm_model: str = "qwen3.8:27b"

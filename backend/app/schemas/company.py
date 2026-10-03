@@ -46,6 +46,8 @@ class SyncSummary(BaseModel):
     stock_price: Optional[float] = None
     price_change: Optional[float] = None
     ai_sentiment: Optional[str] = None
+    ai_summary: Optional[str] = None
+    error: Optional[str] = None
     status: str
 
     class Config:
@@ -66,6 +68,7 @@ class CompanyListResponse(CompanyResponse):
     latest_sync: Optional[SyncSummary] = None
     is_stale: bool = False
     is_syncing: bool = False
+    sync_error: Optional[str] = None
     has_alert: bool = False
 
     class Config:

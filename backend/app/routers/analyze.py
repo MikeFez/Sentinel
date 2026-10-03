@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
@@ -40,10 +41,16 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
 
     if request.ticker:
         stock_service = StockService(app_settings.finnhub_api_key)
-        stock_data = stock_service.get_stock_data(request.ticker)
-        news_articles = stock_service.get_company_news(request.ticker, days=7)
-        analyst_ratings = stock_service.get_analyst_recommendations(request.ticker)
-        insider_transactions = stock_service.get_insider_transactions(request.ticker)
+
+        def fetch():  # blocking Finnhub calls, run off the event loop
+            return (
+                stock_service.get_stock_data(request.ticker),
+                stock_service.get_company_news(request.ticker, days=7),
+                stock_service.get_analyst_recommendations(request.ticker),
+                stock_service.get_insider_transactions(request.ticker),
+            )
+
+        stock_data, news_articles, analyst_ratings, insider_transactions = await asyncio.to_thread(fetch)
 
     # Optionally prepend user notes as extra context
     if request.notes:
@@ -62,6 +69,9 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
         insider_transactions=insider_transactions,
         custom_instructions=custom_instructions,
     )
+
+    if summary is None and sentiment is None:
+        raise HTTPException(status_code=502, detail=f"AI analysis failed: {llm.last_error or 'no response from the LLM'}")
 
     return AnalyzeResponse(
         summary=summary,
