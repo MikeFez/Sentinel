@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from ..models.company import CompanyStatus
@@ -36,8 +36,7 @@ class TagInCompany(BaseModel):
     name: str
     color: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SyncSummary(BaseModel):
@@ -50,8 +49,7 @@ class SyncSummary(BaseModel):
     error: Optional[str] = None
     status: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LatestAnalysis(BaseModel):
@@ -73,8 +71,7 @@ class CompanyResponse(CompanyBase):
     quote_change: Optional[float] = None
     quote_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CompanyListResponse(CompanyResponse):
@@ -85,5 +82,4 @@ class CompanyListResponse(CompanyResponse):
     sync_error: Optional[str] = None
     has_alert: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

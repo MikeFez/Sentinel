@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, Plus, Check } from 'lucide-react';
 import { getIPOCalendar, refreshIPOCalendar, createCompany } from '../../api/client';
-import { useAppData } from '../../state/AppData';
+import { useAppData } from '../../state/useAppData';
 import type { IPOEntry } from '../../types';
 import { ago, daysUntil, inDays, money, shortDate } from '../../lib/format';
 import './IPOCalendar.css';

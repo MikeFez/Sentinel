@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, ArrowRight } from 'lucide-react';
-import { runAnalysis, createCompany } from '../../api/client';
-import { useAppData } from '../../state/AppData';
+import { runAnalysis, createCompany, errorDetail } from '../../api/client';
+import { useAppData } from '../../state/useAppData';
 import type { AnalyzeResult } from '../../api/client';
 import type { SentimentType } from '../../types';
 import SentimentBadge from '../shared/SentimentBadge';
@@ -51,8 +51,8 @@ function AnalyzePage() {
       });
       setResult(data);
       setAnalyzed({ ticker: ticker.trim().toUpperCase(), name: companyName.trim() });
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Analysis failed. Check the LLM endpoint is reachable.');
+    } catch (err) {
+      setError(errorDetail(err, 'Analysis failed. Check the LLM endpoint is reachable.'));
     } finally {
       setRunning(false);
     }

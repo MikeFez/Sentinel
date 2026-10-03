@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -33,7 +33,8 @@ class SyncResponse(BaseModel):
     ai_key_points: Optional[List[str]] = None
     ai_risks: Optional[List[str]] = None
     ai_changes: Optional[str] = None
+    reason: Optional[str] = None
+    earnings_history: Optional[List[Dict[str, Any]]] = None
     status: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

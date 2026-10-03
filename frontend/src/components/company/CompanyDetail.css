@@ -84,3 +84,4 @@
   .cd-history .hide-sm { display: none; }
   .cd-empty { flex-direction: column; align-items: flex-start; }
 }
+.eh-summary { font-size: 13px; font-weight: 400; margin-left: auto; }

@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { RefreshCw, Pencil, MoreHorizontal, Trash2, Bell, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
-import { deleteCompany, triggerSync, getCompanySyncs } from '../../api/client';
-import { useAppData, triggeredAlert, livePrice } from '../../state/AppData';
+import { deleteCompany, triggerSync, getCompanySyncs, getNewsFeed } from '../../api/client';
+import { useAppData } from '../../state/useAppData';
+import { triggeredAlert, livePrice } from '../../lib/prices';
 import type { Sync } from '../../types';
 import { money, pct, direction, ago, parseTime, hoursSince } from '../../lib/format';
 import StockDataPanel from './StockDataPanel';
 import AiAnalysisPanel from './AiAnalysisPanel';
-import NewsFeed from './NewsFeed';
+import CompanyNews from './CompanyNews';
+import EarningsHistory from './EarningsHistory';
 import AnalystRatings from './AnalystRatings';
 import EarningsCalendar from './EarningsCalendar';
 import InsiderTransactions from './InsiderTransactions';
@@ -30,6 +32,7 @@ function CompanyDetail() {
   const [tab, setTab] = useState<Tab>('overview');
   const [showEdit, setShowEdit] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [newsCount, setNewsCount] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const loadSyncs = useCallback(async () => {
@@ -46,6 +49,10 @@ function CompanyDetail() {
     setSyncs([]);
     loadSyncs();
   }, [id, loadSyncs]);
+
+  useEffect(() => {
+    if (id) getNewsFeed(500, id).then((a) => setNewsCount(a.length)).catch(() => setNewsCount(0));
+  }, [id, syncs.length]);
 
   // Reload the detail once a running sync finishes (the shared company list is polled while syncing)
   const syncing = company?.is_syncing ?? false;
@@ -72,7 +79,6 @@ function CompanyDetail() {
   const alert = triggeredAlert(company);
   const live = livePrice(company);
   const stale = !latest || hoursSince(latest.synced_at) > stalenessHours;
-  const newsCount = latest?.raw_news?.length ?? 0;
   const insiderCount = latest?.insider_transactions?.length ?? 0;
 
   const sync = async () => {
@@ -212,22 +218,24 @@ function CompanyDetail() {
             <div className="cd-two">
               {latest?.analyst_ratings && <AnalystRatings ratings={latest.analyst_ratings} />}
               {latest?.earnings_dates && latest.earnings_dates.length > 0 && <EarningsCalendar earnings={latest.earnings_dates} />}
+              {latest?.earnings_history && latest.earnings_history.length > 0 && <EarningsHistory quarters={latest.earnings_history} />}
             </div>
           </div>
         )}
 
-        {tab === 'news' && latest?.raw_news && <NewsFeed articles={latest.raw_news} />}
+        {tab === 'news' && <CompanyNews companyId={company.id} refreshKey={latest?.id ?? ''} />}
         {tab === 'insiders' && latest?.insider_transactions && <InsiderTransactions transactions={latest.insider_transactions} />}
 
         {tab === 'history' && (
           <div className="card">
             {company.status === 'public' && <PriceChart syncs={completed} />}
             <table className="cd-history">
-              <thead><tr><th>When</th><th className="r">Price</th><th className="r hide-sm">Change</th><th>Sentiment</th><th className="hide-sm">Result</th></tr></thead>
+              <thead><tr><th>When</th><th className="hide-sm">Why</th><th className="r">Price</th><th className="r hide-sm">Change</th><th>Sentiment</th><th className="hide-sm">Result</th></tr></thead>
               <tbody>
                 {syncs.map((s) => (
                   <tr key={s.id}>
                     <td title={parseTime(s.synced_at).toLocaleString()}>{parseTime(s.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                    <td className="hide-sm muted">{s.reason ?? '—'}</td>
                     <td className="r num">{money(s.stock_price)}</td>
                     <td className={`r num hide-sm ${direction(s.price_change)}`}>{pct(s.price_change)}</td>
                     <td>{s.ai_sentiment ? <SentimentBadge sentiment={s.ai_sentiment} /> : <span className="muted">—</span>}</td>

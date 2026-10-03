@@ -1,8 +1,7 @@
 from datetime import timezone
 from sqlalchemy import create_engine, DateTime
 from sqlalchemy.types import TypeDecorator
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from .config import settings
 
 DATABASE_URL = settings.database_url

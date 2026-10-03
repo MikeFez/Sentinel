@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     price_refresh_minutes: float = 5.0
     # Private / pre-IPO companies: refresh (news only) when older than this many days (0 = never)
     private_refresh_days: float = 7.0
+    # Re-sync a public company when its price moves at least this much in a day (0 = off)
+    move_sync_percent: float = 5.0
+    # Re-sync after a company reports earnings
+    earnings_sync: bool = True
     # Keep full sync detail (news, prompts, insider data) for this many days (0 = forever)
     history_detail_days: float = 30.0
     # Guidance for the AI analysis. The output format is fixed by the app (see llm_service).
@@ -27,8 +31,7 @@ class Settings(BaseSettings):
         "- Be objective and balanced, and stick to facts from the data provided."
     )
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=".env")
 
 
 settings = Settings()

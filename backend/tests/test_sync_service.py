@@ -14,7 +14,7 @@ class FakeStock:
         return {"stock_price": self.price, "price_change": 1.5, "industry": "Rockets"} if self.price else None
 
     def get_company_news(self, ticker, days=7, limit=10):
-        return [{"title": f"News {i}"} for i in range(limit)]
+        return [{"title": f"News {i}", "url": f"https://news/{i}"} for i in range(limit)]
 
     def get_analyst_recommendations(self, ticker):
         return {"buy": 3}
@@ -27,6 +27,9 @@ class FakeStock:
 
     def get_basic_financials(self, ticker):
         return {}
+
+    def get_earnings_history(self, ticker):
+        return [{"quarter": 2, "year": 2026, "actual": 0.1, "estimate": 0.08, "surprisePercent": 25.0}]
 
 
 class FakeLLM:
@@ -55,6 +58,10 @@ def test_success_stores_structured_analysis_and_quote(db):
     assert s.status == SyncStatus.completed and s.error is None
     assert (s.ai_summary, s.ai_sentiment.value, s.ai_key_points, s.ai_risks, s.ai_changes) == ("Up.", "bullish", ["k"], ["r"], "Price rose.")
     assert len(s.raw_news) == 3  # honours news_count
+    assert s.earnings_history[0]["actual"] == 0.1
+    assert llm.calls[0]["earnings_history"] == s.earnings_history
+    from app.models import NewsArticle
+    assert db.query(NewsArticle).filter(NewsArticle.company_id == c.id).count() == 3
     assert c.quote_price == 10.0 and c.industry == "Rockets"
     assert llm.calls[0]["previous"] is None
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAppData } from '../../state/AppData';
+import { useAppData } from '../../state/useAppData';
 import { RefreshCw, Check, X, AlertCircle } from 'lucide-react';
 import {
   getSettings,
@@ -19,6 +19,8 @@ function LLMSettings() {
   const [priceMinutes, setPriceMinutes] = useState('5');
   const [privateDays, setPrivateDays] = useState('7');
   const [historyDays, setHistoryDays] = useState('30');
+  const [moveSyncPercent, setMoveSyncPercent] = useState('5');
+  const [earningsSync, setEarningsSync] = useState(true);
   const { toast } = useAppData();
   const [promptInstructions, setPromptInstructions] = useState('');
   const [models, setModels] = useState<string[]>([]);
@@ -33,6 +35,8 @@ function LLMSettings() {
   useEffect(() => {
     loadSettings();
     checkHealth();
+    // Load once on mount; both functions only read settings from the server
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSettings = async () => {
@@ -47,6 +51,8 @@ function LLMSettings() {
       setPriceMinutes(settings.price_refresh_minutes ?? '5');
       setPrivateDays(settings.private_refresh_days ?? '7');
       setHistoryDays(settings.history_detail_days ?? '30');
+      setMoveSyncPercent(settings.move_sync_percent ?? '5');
+      setEarningsSync(settings.earnings_sync !== 'false');
       setPromptInstructions(settings.ai_prompt_instructions || '');
       await loadModels();
     } catch (error) {
@@ -92,6 +98,8 @@ function LLMSettings() {
         price_refresh_minutes: priceMinutes,
         private_refresh_days: privateDays,
         history_detail_days: historyDays,
+        move_sync_percent: moveSyncPercent,
+        earnings_sync: earningsSync ? 'true' : 'false',
         ai_prompt_instructions: promptInstructions,
       });
       toast('Settings saved', 'success');
@@ -282,6 +290,26 @@ function LLMSettings() {
           <small className="form-hint">
             Private and pre-IPO companies only have news, so they refresh on this slower schedule. 0 never refreshes them automatically.
           </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="move-percent">Re-analyze on Big Moves (%)</label>
+          <input id="move-percent" type="number" min="0" max="50" step="0.5" value={moveSyncPercent} onChange={(e) => setMoveSyncPercent(e.target.value)} />
+          <small className="form-hint">
+            Run a full sync (news and AI analysis) when a public company's price moves at least this much in a day, at most once per trading day. 0 turns it off.
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="earnings-toggle">Re-analyze After Earnings</label>
+          <div className="toggle-row">
+            <button id="earnings-toggle" type="button" role="switch" aria-checked={earningsSync}
+              className={`toggle-switch ${earningsSync ? 'on' : ''}`} onClick={() => setEarningsSync((v) => !v)}>
+              <span className="toggle-thumb" />
+            </button>
+            <span className="toggle-label">{earningsSync ? 'Enabled' : 'Disabled'}</span>
+          </div>
+          <small className="form-hint">Sync a company once its results are out (after 4:30 PM ET on its earnings date).</small>
         </div>
 
         <div className="form-group">

@@ -1,5 +1,6 @@
 import TagManager from './TagManager';
 import LLMSettings from './LLMSettings';
+import MarketDataSettings from './MarketDataSettings';
 import './SettingsPage.css';
 
 function SettingsPage() {
@@ -14,10 +15,7 @@ function SettingsPage() {
 
         <TagManager />
 
-        <div className="settings-section">
-          <h2>Data Management</h2>
-          <p className="coming-soon">Coming in Phase 5</p>
-        </div>
+        <MarketDataSettings />
       </div>
     </div>
   );

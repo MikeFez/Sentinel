@@ -122,7 +122,20 @@ export interface Sync {
   ai_key_points: string[] | null;
   ai_risks: string[] | null;
   ai_changes: string | null;
+  /** Why the sync ran, e.g. "Manual sync", "Price moved +6.1% today". */
+  reason: string | null;
+  earnings_history: EarningsQuarter[] | null;
   status: SyncStatus;
+}
+
+export interface EarningsQuarter {
+  period: string | null;
+  quarter: number | null;
+  year: number | null;
+  actual: number | null;
+  estimate: number | null;
+  surprise: number | null;
+  surprisePercent: number | null;
 }
 
 export interface NewsArticle {

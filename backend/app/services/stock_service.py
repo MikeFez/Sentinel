@@ -10,6 +10,16 @@ _MAX_RETRIES = 5
 _BACKOFF_BASE = 1.0   # seconds; doubles each retry, caps at 32s
 
 
+# The outcome of the most recent Finnhub request, for the status shown in Settings and the dashboard
+finnhub_status: Dict[str, Any] = {"ok": None, "error": None, "at": None}
+
+
+def _record(ok: bool, error: Optional[str] = None) -> None:
+    from datetime import datetime, timezone
+
+    finnhub_status.update(ok=ok, error=error, at=datetime.now(timezone.utc))
+
+
 class StockService:
     """Service for fetching stock data using Finnhub API"""
 
@@ -24,10 +34,18 @@ class StockService:
         """
         delay = _BACKOFF_BASE
         for attempt in range(_MAX_RETRIES):
-            with httpx.Client() as client:
-                response = client.get(url, params=params, timeout=timeout)
+            try:
+                with httpx.Client() as client:
+                    response = client.get(url, params=params, timeout=timeout)
+            except httpx.HTTPError as e:
+                _record(False, f"Could not reach Finnhub: {e}")
+                raise
 
             if response.status_code not in _RETRY_STATUSES:
+                if response.status_code == 401:  # 403 just means an endpoint isn't in the plan
+                    _record(False, "Finnhub rejected the API key (check FINNHUB_API_KEY)")
+                elif response.is_success:
+                    _record(True)
                 response.raise_for_status()
                 return response.json()
 
@@ -40,6 +58,8 @@ class StockService:
                 time.sleep(wait)
                 delay *= 2
             else:
+                _record(False, f"Finnhub kept returning HTTP {response.status_code}"
+                        + (" (rate limited: the free plan allows 60 calls a minute)" if response.status_code == 429 else ""))
                 response.raise_for_status()
 
         raise RuntimeError("Unreachable")
@@ -282,6 +302,18 @@ class StockService:
 
         except Exception as e:
             logger.error(f"Error fetching earnings calendar for {ticker}: {str(e)}")
+            return []
+
+    def get_earnings_history(self, ticker: str) -> List[Dict[str, Any]]:
+        """Last four reported quarters: [{period, quarter, year, actual, estimate, surprisePercent}], newest first."""
+        if not self.api_key:
+            return []
+        try:
+            data = self._request(f"{self.base_url}/stock/earnings", {"symbol": ticker, "token": self.api_key})
+            keep = ("period", "quarter", "year", "actual", "estimate", "surprise", "surprisePercent")
+            return [{k: q.get(k) for k in keep} for q in (data or [])[:4]]
+        except Exception as e:
+            logger.error(f"Error fetching earnings history for {ticker}: {e}")
             return []
 
     def get_insider_transactions(self, ticker: str) -> List[Dict[str, Any]]:

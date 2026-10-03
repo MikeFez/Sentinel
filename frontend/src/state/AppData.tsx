@@ -1,27 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppDataContext as Ctx, type Toast } from './useAppData';
 import { getCompanies, getTags, getSettings } from '../api/client';
-import type { Company, CompanyWithSync, Tag } from '../types';
-import { parseTime } from '../lib/format';
-
-export interface Toast {
-  id: number;
-  kind: 'info' | 'success' | 'error';
-  text: string;
-}
-
-interface AppData {
-  companies: CompanyWithSync[];
-  tags: Tag[];
-  stalenessHours: number;
-  loaded: boolean;
-  /** Re-fetch companies and tags (after an add/edit/delete or a sync). */
-  refresh: () => Promise<void>;
-  toast: (text: string, kind?: Toast['kind']) => void;
-  toasts: Toast[];
-  dismissToast: (id: number) => void;
-}
-
-const Ctx = createContext<AppData | null>(null);
+import type { CompanyWithSync, Tag } from '../types';
 
 // Poll quickly while anything is syncing so progress shows up everywhere, slowly otherwise.
 const FAST_MS = 3000;
@@ -87,28 +67,4 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [companies, tags, stalenessHours, loaded, refresh, toast, toasts, dismissToast],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-}
-
-export function useAppData(): AppData {
-  const v = useContext(Ctx);
-  if (!v) throw new Error('useAppData outside AppDataProvider');
-  return v;
-}
-
-/** The freshest price we have: the quote refresh or the last sync, whichever is newer. */
-export function livePrice(c: CompanyWithSync | Company): { price: number; change: number | null; at: string } | null {
-  const sync = 'latest_sync' in c ? c.latest_sync : null;
-  const fromSync = sync?.stock_price != null ? { price: sync.stock_price, change: sync.price_change, at: sync.synced_at } : null;
-  const fromQuote = c.quote_price != null && c.quote_at ? { price: c.quote_price, change: c.quote_change, at: c.quote_at } : null;
-  if (fromQuote && (!fromSync || parseTime(fromQuote.at) >= parseTime(fromSync.at))) return fromQuote;
-  return fromSync;
-}
-
-/** Price alert that the latest price has crossed, if any. */
-export function triggeredAlert(c: CompanyWithSync): { kind: 'above' | 'below'; level: number; price: number } | null {
-  const price = livePrice(c)?.price;
-  if (price == null) return null;
-  if (c.alert_above != null && price >= c.alert_above) return { kind: 'above', level: c.alert_above, price };
-  if (c.alert_below != null && price <= c.alert_below) return { kind: 'below', level: c.alert_below, price };
-  return null;
 }

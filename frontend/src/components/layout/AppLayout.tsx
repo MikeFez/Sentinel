@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { X, Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
-import { useAppData } from '../../state/AppData';
+import { useAppData } from '../../state/useAppData';
 import './AppLayout.css';
 
 function Toasts() {

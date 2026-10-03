@@ -55,5 +55,10 @@ class Sync(Base):
     ai_risks = Column(JSON, nullable=True)  # list of short strings
     ai_changes = Column(Text, nullable=True)  # what changed since the previous analysis
 
+    # Why this sync ran, e.g. "Scheduled refresh", "Price moved +6.1%", "Earnings on 2026-11-04"
+    reason = Column(String, nullable=True)
+    # Last few quarters of reported vs estimated EPS
+    earnings_history = Column(JSON, nullable=True)
+
     # Relationships
     company = relationship("Company", back_populates="syncs")

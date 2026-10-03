@@ -14,10 +14,21 @@ RUN npm ci
 # Copy frontend source
 COPY frontend/ ./
 
-# Build frontend
-RUN npm run build
+# Lint, type-check and build the frontend (fails the image build on problems)
+RUN npm run lint && npm run build
 
-# Stage 2: Python backend
+# Stage 2: Backend tests. The image build (and so CI) fails if they fail.
+FROM python:3.12-slim AS backend-tests
+
+WORKDIR /app
+
+COPY backend/requirements.txt backend/requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+
+COPY backend/ ./
+RUN python -m pytest -q -p no:cacheprovider && touch /tests-passed
+
+# Stage 3: Python backend
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -33,8 +44,11 @@ COPY backend/requirements.txt ./
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend source
+# Copy backend source (tests ran in the backend-tests stage)
 COPY backend/ ./
+RUN rm -rf tests requirements-dev.txt
+# Depend on the test stage so BuildKit doesn't skip it
+COPY --from=backend-tests /tests-passed /tmp/tests-passed
 
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
@@ -52,6 +66,9 @@ ENV DATABASE_URL=sqlite:///./data/sentinel.db
 
 # Expose port
 EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)" || exit 1
 
 # Use entrypoint script
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

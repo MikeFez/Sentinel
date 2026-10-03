@@ -11,6 +11,15 @@ import type {
   IPOEntry,
 } from '../types';
 
+/** The server's error message (FastAPI's `detail`), or `fallback`. */
+export function errorDetail(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+  }
+  return fallback;
+}
+
 const api = axios.create({
   baseURL: '/api',
   headers: {
@@ -141,6 +150,8 @@ export interface HomeSummary {
 }
 
 export interface NewsFeedArticle {
+  id: string;
+  first_seen_at: string;
   company_id: string;
   company_name: string;
   company_ticker: string | null;
@@ -151,8 +162,20 @@ export interface NewsFeedArticle {
   summary: string;
 }
 
-export const getNewsFeed = async (limit = 100): Promise<NewsFeedArticle[]> => {
-  const response = await api.get('/news/feed', { params: { limit } });
+export const getNewsFeed = async (limit = 200, companyId?: string): Promise<NewsFeedArticle[]> => {
+  const response = await api.get('/news/feed', { params: { limit, company_id: companyId } });
+  return response.data;
+};
+
+export interface FinnhubStatus {
+  configured: boolean;
+  ok: boolean | null;
+  error: string | null;
+  at: string | null;
+}
+
+export const getFinnhubStatus = async (check = false): Promise<FinnhubStatus> => {
+  const response = await api.get('/settings/finnhub/status', { params: { check } });
   return response.data;
 };
 

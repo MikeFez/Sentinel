@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RefreshCw, AlertTriangle, Bell, Sparkles, CalendarClock, Loader2, Plus } from 'lucide-react';
-import { getHomeSummary, syncStaleCompanies, triggerSync, type UpcomingEarning } from '../../api/client';
-import { useAppData, triggeredAlert, livePrice } from '../../state/AppData';
+import { getHomeSummary, syncStaleCompanies, triggerSync, getFinnhubStatus, type UpcomingEarning, type FinnhubStatus } from '../../api/client';
+import { useAppData } from '../../state/useAppData';
+import { triggeredAlert, livePrice } from '../../lib/prices';
 import type { CompanyWithSync } from '../../types';
 import { money, signedMoney, pct, direction, ago, num, shortDate, inDays } from '../../lib/format';
 import SentimentBadge from '../shared/SentimentBadge';
@@ -62,9 +63,11 @@ function DashboardPage() {
   const [earnings, setEarnings] = useState<UpcomingEarning[]>([]);
   const [queueing, setQueueing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [finnhub, setFinnhub] = useState<FinnhubStatus | null>(null);
 
   useEffect(() => {
     getHomeSummary().then((s) => setEarnings(s.upcoming_earnings)).catch(() => {});
+    getFinnhubStatus().then(setFinnhub).catch(() => {});
   }, [companies.length]);
 
   if (!loaded) return <div className="page"><div className="muted">Loading…</div></div>;
@@ -86,6 +89,10 @@ function DashboardPage() {
   const watchlist = companies.filter((c) => !((c.shares_owned ?? 0) > 0));
   const staleCount = companies.filter((c) => c.status === 'public' && c.ticker && c.is_stale && !c.is_syncing).length;
   const attention = needsAttention(companies);
+  const hasPublic = companies.some((c) => c.status === 'public' && c.ticker);
+  const marketDataProblem = hasPublic && finnhub && (!finnhub.configured || finnhub.ok === false)
+    ? (finnhub.error ?? 'Finnhub is not working')
+    : null;
 
   // Portfolio totals (positions without a price are left out of the totals)
   const rows = holdings.map((c) => {
@@ -140,9 +147,17 @@ function DashboardPage() {
         </button>
       </header>
 
-      {attention.length > 0 && (
+      {(attention.length > 0 || marketDataProblem) && (
         <section className="card db-attention">
           <h2>Needs attention</h2>
+          {marketDataProblem && (
+            <div className="db-attention-row">
+              <AlertTriangle size={15} className="down" />
+              <span className="db-company-name">Market data</span>
+              <span className="db-attention-text">{marketDataProblem}</span>
+              <Link to="/settings" className="btn btn-ghost btn-sm">Settings</Link>
+            </div>
+          )}
           {attention.map((a) => (
             <div key={a.key} className="db-attention-row">
               {a.icon === 'alert' ? <Bell size={15} className="db-icon-alert" /> : <AlertTriangle size={15} className="down" />}

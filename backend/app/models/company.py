@@ -43,3 +43,4 @@ class Company(Base):
     # Relationships
     syncs = relationship("Sync", back_populates="company", cascade="all, delete-orphan")
     tags = relationship("Tag", secondary="company_tags", back_populates="companies")
+    news = relationship("NewsArticle", back_populates="company", cascade="all, delete-orphan")

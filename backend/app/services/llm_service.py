@@ -46,6 +46,11 @@ def clean_instructions(text: Optional[str]) -> Optional[str]:
     return text or None
 
 
+def _eps(value: float) -> str:
+    """EPS with enough precision that close values don't look equal (e.g. -0.080 vs -0.077)."""
+    return f"{value:.3f}" if abs(value) < 1 else f"{value:.2f}"
+
+
 def _strings(value: Any, limit: int) -> List[str]:
     if not isinstance(value, list):
         return []
@@ -154,6 +159,7 @@ class LLMService:
         insider_transactions: Optional[List[Dict[str, Any]]] = None,
         custom_instructions: Optional[str] = None,
         previous: Optional[Dict[str, Any]] = None,
+        earnings_history: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[Optional[Analysis], str]:
         """
         Analyze a company's data and news.
@@ -164,7 +170,7 @@ class LLMService:
         """
         prompt = self._build_analysis_prompt(
             company_name, ticker, status, stock_data, news_articles, analyst_ratings, insider_transactions,
-            custom_instructions=custom_instructions, previous=previous,
+            custom_instructions=custom_instructions, previous=previous, earnings_history=earnings_history,
         )
         response = await self.generate(prompt, timeout=180, json_mode=True)
         if response is None:
@@ -187,6 +193,7 @@ class LLMService:
         insider_transactions: Optional[List[Dict[str, Any]]] = None,
         custom_instructions: Optional[str] = None,
         previous: Optional[Dict[str, Any]] = None,
+        earnings_history: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """Build the prompt for company analysis"""
         prompt = f"""You are a financial analyst. Analyze the following information about {company_name}"""
@@ -233,6 +240,19 @@ class LLMService:
                 change = txn.get("change", 0)
                 transaction_type = "Bought" if change > 0 else "Sold"
                 prompt += f"{i}. {name} {transaction_type} {abs(change):,} shares\n"
+
+        if earnings_history:
+            prompt += "\nRecent Earnings (EPS actual vs estimate):\n"
+            for q in earnings_history:
+                if q.get("actual") is None:
+                    continue
+                label = f"Q{q.get('quarter')} {q.get('year')}" if q.get("quarter") else q.get("period", "")
+                line = f"- {label}: {_eps(q['actual'])}"
+                if q.get("estimate") is not None:
+                    line += f" vs {_eps(q['estimate'])}"
+                if q.get("surprisePercent") is not None:
+                    line += f" ({'beat' if q['surprisePercent'] >= 0 else 'miss'} by {abs(q['surprisePercent']):.1f}%)"
+                prompt += line + "\n"
 
         # Add news articles
         if news_articles:

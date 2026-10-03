@@ -13,6 +13,7 @@ from .database import engine, Base, SessionLocal
 from .services.sync_runner import start_sync, run_sync, stale_company_ids, recover_interrupted_syncs, Thresholds
 from .services.quote_service import refresh_quotes
 from .services.maintenance import prune_history
+from .services.events import due_event_syncs
 from .routers.settings import get_setting, get_float
 from .config import settings as app_settings
 
@@ -36,18 +37,20 @@ async def _auto_refresh_loop() -> None:
             if time.monotonic() - last_prune > _PRUNE_INTERVAL or not last_prune:
                 last_prune = time.monotonic()
                 await asyncio.to_thread(prune_history, db, get_float(db, "history_detail_days"))
+            wanted = due_event_syncs(db, get_float(db, "move_sync_percent"), get_setting(db, "earnings_sync") == "true")
             if get_setting(db, "auto_refresh_enabled") == "true":
-                for company_id in stale_company_ids(db, Thresholds.for_auto_refresh(db)):
-                    sync, created = start_sync(db, company_id)
-                    if created:
-                        to_run.append(sync.id)
+                wanted += [(cid, "Scheduled refresh") for cid in stale_company_ids(db, Thresholds.for_auto_refresh(db))]
+            for company_id, reason in wanted:
+                sync, created = start_sync(db, company_id, reason)
+                if created:
+                    to_run.append(sync.id)
         except Exception:
             logger.exception("Auto-refresh check failed")
         finally:
             db.close()
 
         if to_run:
-            logger.info(f"Auto-refresh: syncing {len(to_run)} stale companies")
+            logger.info(f"Auto-refresh: syncing {len(to_run)} companies")
         for sync_id in to_run:
             await run_sync(sync_id)
         await asyncio.sleep(_AUTO_REFRESH_INTERVAL)

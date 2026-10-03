@@ -16,7 +16,7 @@ async def trigger_sync(company_id: str, background_tasks: BackgroundTasks, db: S
     if not db.query(Company.id).filter(Company.id == company_id).first():
         raise HTTPException(status_code=404, detail="Company not found")
 
-    sync, created = start_sync(db, company_id)
+    sync, created = start_sync(db, company_id, "Manual sync")
     if created:
         background_tasks.add_task(run_sync, sync.id)
     return sync
@@ -62,7 +62,7 @@ async def sync_stale_companies(background_tasks: BackgroundTasks, db: Session = 
     """Queue a sync for every company whose data is stale (see Thresholds.for_display)."""
     queued = 0
     for company_id in stale_company_ids(db, Thresholds.for_display(db)):
-        sync, created = start_sync(db, company_id)
+        sync, created = start_sync(db, company_id, "Stale data")
         if created:
             background_tasks.add_task(run_sync, sync.id)
             queued += 1

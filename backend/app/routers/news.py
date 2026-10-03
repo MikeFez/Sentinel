@@ -1,52 +1,33 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
-from typing import List
+
 from ..database import get_db
-from ..models import Company, Sync, SyncStatus
+from ..models import NewsArticle
 
 router = APIRouter(prefix="/api/news", tags=["news"])
 
 
 @router.get("/feed")
-def get_news_feed(limit: int = 100, db: Session = Depends(get_db)):
-    """
-    Aggregate raw_news from every company's latest completed sync,
-    flatten and sort by published_at descending.
-    """
-    # One query: latest completed sync per company
-    max_sync_subq = (
-        db.query(Sync.company_id, func.max(Sync.synced_at).label("max_synced_at"))
-        .filter(Sync.status == SyncStatus.completed)
-        .group_by(Sync.company_id)
-        .subquery()
-    )
-    latest_syncs = (
-        db.query(Sync)
-        .join(
-            max_sync_subq,
-            (Sync.company_id == max_sync_subq.c.company_id)
-            & (Sync.synced_at == max_sync_subq.c.max_synced_at),
-        )
-        .options(joinedload(Sync.company))
-        .all()
-    )
-
-    articles = []
-    for sync in latest_syncs:
-        if not sync.raw_news:
-            continue
-        for article in sync.raw_news:
-            articles.append({
-                "company_id": sync.company_id,
-                "company_name": sync.company.name,
-                "company_ticker": sync.company.ticker,
-                "title": article.get("title", ""),
-                "url": article.get("url", ""),
-                "source": article.get("source"),
-                "published_at": article.get("published_at", 0),
-                "summary": article.get("summary", ""),
-            })
-
-    articles.sort(key=lambda a: a["published_at"] or 0, reverse=True)
-    return articles[:limit]
+def get_news_feed(limit: int = 200, company_id: Optional[str] = None, db: Session = Depends(get_db)):
+    """Stored news across all companies (or one), newest first."""
+    q = db.query(NewsArticle).options(joinedload(NewsArticle.company))
+    if company_id:
+        q = q.filter(NewsArticle.company_id == company_id)
+    articles = q.order_by(NewsArticle.published_at.desc().nulls_last(), NewsArticle.first_seen_at.desc()).limit(limit)
+    return [
+        {
+            "id": a.id,
+            "company_id": a.company_id,
+            "company_name": a.company.name,
+            "company_ticker": a.company.ticker,
+            "title": a.title,
+            "url": a.url,
+            "source": a.source,
+            "published_at": a.published_at,
+            "summary": a.summary or "",
+            "first_seen_at": a.first_seen_at,
+        }
+        for a in articles
+    ]

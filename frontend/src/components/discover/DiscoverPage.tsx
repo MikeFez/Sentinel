@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Check, ChevronDown, ChevronUp, Loader, Sparkles } from 'lucide-react';
 import { startDiscover, getDiscoverSession, analyzeDiscoverCompany, createCompany } from '../../api/client';
-import { useAppData } from '../../state/AppData';
+import { useAppData } from '../../state/useAppData';
 import type { DiscoverSession, DiscoverCompany } from '../../api/client';
 import type { SentimentType } from '../../types';
 import SentimentBadge from '../shared/SentimentBadge';

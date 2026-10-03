@@ -44,7 +44,9 @@ backend/
     services/          # Business logic (sync, stock, llm, news)
       sync_runner.py   # start_sync/run_sync: the only way syncs are started; Thresholds = staleness rules
       quote_service.py # price-only refresh while the US market is open (+ once after close)
-      maintenance.py   # prune_history: drop bulky detail from old syncs (daily)
+      maintenance.py   # prune_history: drop bulky detail from old syncs and old news (daily)
+      events.py        # syncs triggered by big price moves or earnings results
+      news_store.py    # news articles stored once per company (news_articles table)
   tests/               # pytest suite: `make test`
   alembic/             # Database migrations
     versions/          # Migration scripts (committed)
@@ -87,8 +89,13 @@ The model is asked for one JSON object (summary, sentiment, key_points, risks, c
 ### Times
 Timestamps are stored as naive UTC (SQLite) via `UTCDateTime` in `database.py`, which reads them back as aware UTC, so the API sends `...Z`. Use `parseTime`/`ago` from `lib/format.ts` on the frontend, not `new Date(str)` math.
 
-### Tests
-`make test` runs `backend/tests` with uv against a throwaway SQLite database. Add a test when changing sync, staleness, parsing or pruning logic.
+### Event syncs and news
+- Besides scheduled refreshes, the auto-refresh loop syncs a public company when its price moves `move_sync_percent` in a day (once per session) or after an earnings date's results are out. `syncs.reason` records why each sync ran.
+- News lives in `news_articles` (deduplicated by URL per company); the News page and the company News tab read from it, not from `syncs.raw_news`.
+- `stock_service.finnhub_status` holds the outcome of the last Finnhub request; Settings and the dashboard show it.
+
+### Tests and checks
+`make test` runs `backend/tests` with uv against a throwaway SQLite database. Add a test when changing sync, staleness, parsing, event or pruning logic. The Docker build runs the backend tests and `npm run lint` + `tsc`, so CI fails (and nothing is published) if any of them fail.
 
 ### Pages
 Dashboard (`/`: portfolio, watchlist, needs-attention, earnings, latest analysis), company page (tabs: overview, news, insider trades, history), News, IPOs, Research (`/research?tab=analyze|discover`), Settings. `/portfolio`, `/analyze` and `/discover` redirect.

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { createCompany, updateCompany, getTags, assignTags } from '../../api/client';
+import { createCompany, updateCompany, getTags, assignTags, errorDetail } from '../../api/client';
 import type { Company, CompanyCreate, CompanyStatus, Tag } from '../../types';
-import { useAppData, livePrice } from '../../state/AppData';
+import { useAppData } from '../../state/useAppData';
+import { livePrice } from '../../lib/prices';
 import { money } from '../../lib/format';
 import './AddCompanyModal.css';
 
@@ -93,8 +94,8 @@ function AddCompanyModal({ onClose, onSuccess, company }: AddCompanyModalProps) 
       }
 
       onSuccess();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to save company');
+    } catch (err) {
+      setError(errorDetail(err, 'Failed to save company'));
     } finally {
       setLoading(false);
     }

@@ -19,6 +19,8 @@ SETTING_DEFAULTS: dict[str, str] = {
     "price_refresh_minutes": str(app_settings.price_refresh_minutes),
     "private_refresh_days": str(app_settings.private_refresh_days),
     "history_detail_days": str(app_settings.history_detail_days),
+    "move_sync_percent": str(app_settings.move_sync_percent),
+    "earnings_sync": str(app_settings.earnings_sync).lower(),
     "ai_prompt_instructions": app_settings.ai_prompt_instructions,
 }
 
@@ -102,3 +104,20 @@ async def check_llm_health(db: Session = Depends(get_db)):
         "healthy": is_healthy,
         "url": llm_base_url,
     }
+
+
+@router.get("/finnhub/status")
+def finnhub_status(check: bool = False):
+    """Whether market data works: key configured, the last request's outcome, and optionally a live test."""
+    from ..services.stock_service import StockService, finnhub_status as last
+
+    if not app_settings.finnhub_api_key:
+        return {"configured": False, "ok": False, "error": "FINNHUB_API_KEY is not set", "at": None}
+    if check:
+        try:
+            StockService(app_settings.finnhub_api_key)._request(
+                "https://finnhub.io/api/v1/quote", {"symbol": "AAPL", "token": app_settings.finnhub_api_key}
+            )
+        except Exception:
+            pass  # recorded in `last`
+    return {"configured": True, **last}

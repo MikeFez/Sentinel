@@ -24,7 +24,7 @@ def active_sync(db: Session, company_id: str) -> Optional[Sync]:
     )
 
 
-def start_sync(db: Session, company_id: str) -> tuple[Sync, bool]:
+def start_sync(db: Session, company_id: str, reason: Optional[str] = None) -> tuple[Sync, bool]:
     """Create a "syncing" record for the company, unless one is already running.
 
     Returns (sync, created). Callers schedule run_sync(sync.id) only when created is True.
@@ -32,7 +32,7 @@ def start_sync(db: Session, company_id: str) -> tuple[Sync, bool]:
     existing = active_sync(db, company_id)
     if existing:
         return existing, False
-    sync = Sync(company_id=company_id, status=SyncStatus.syncing)
+    sync = Sync(company_id=company_id, status=SyncStatus.syncing, reason=reason)
     db.add(sync)
     db.commit()
     db.refresh(sync)

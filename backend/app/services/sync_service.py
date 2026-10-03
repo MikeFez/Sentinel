@@ -8,6 +8,7 @@ from ..models import Company, Sync, SyncStatus
 from ..models.sync import SentimentType
 from .stock_service import StockService
 from .news_service import NewsService
+from .news_store import store_articles
 from .llm_service import LLMService
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,8 @@ class SyncService:
             sync.earnings_dates = data.get("earnings_dates")
             sync.insider_transactions = insider_transactions
             sync.financials = data.get("financials")
+            sync.earnings_history = data.get("earnings_history") or None
+            store_articles(self.db, company.id, news_articles)
             # Save the market data now, so it survives even if the analysis below fails
             self.db.commit()
 
@@ -115,6 +118,7 @@ class SyncService:
                 news_articles=news_articles,
                 analyst_ratings=analyst_ratings,
                 insider_transactions=insider_transactions,
+                earnings_history=sync.earnings_history,
                 custom_instructions=custom_instructions,
                 previous=previous and {
                     "date": previous.synced_at.strftime("%Y-%m-%d"),
@@ -158,6 +162,7 @@ class SyncService:
             "news": svc.get_company_news(ticker, days=7, limit=news_count),
             "analyst_ratings": svc.get_analyst_recommendations(ticker),
             "earnings_dates": svc.get_earnings_calendar(ticker),
+            "earnings_history": svc.get_earnings_history(ticker),
             "insider_transactions": svc.get_insider_transactions(ticker),
             "financials": svc.get_basic_financials(ticker),
         }

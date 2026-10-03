@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { getTags, createTag, updateTag, deleteTag } from '../../api/client';
 import type { Tag } from '../../types';
-import { useAppData } from '../../state/AppData';
+import { useAppData } from '../../state/useAppData';
 import './TagManager.css';
 
 function TagManager() {

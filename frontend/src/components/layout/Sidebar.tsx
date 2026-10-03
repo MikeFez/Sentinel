@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Newspaper, CalendarDays, Telescope, Settings, Plus, Search,
   ChevronDown, ChevronRight, Loader2, AlertTriangle, Bell, Clock,
 } from 'lucide-react';
-import { useAppData, triggeredAlert, livePrice } from '../../state/AppData';
+import { useAppData } from '../../state/useAppData';
+import { triggeredAlert, livePrice } from '../../lib/prices';
 import type { CompanyWithSync } from '../../types';
 import { pct, direction } from '../../lib/format';
 import AddCompanyModal from '../company/AddCompanyModal';
