@@ -97,6 +97,12 @@ Timestamps are stored as naive UTC (SQLite) via `UTCDateTime` in `database.py`, 
 - Peers come from the latest sync (`syncs.peers`); `GET /api/companies/{id}/peers` adds names and prices, cached for a day.
 - `GET /api/export` / `POST /api/import` move companies, tags and settings as JSON (merge by ticker or name, never delete; `dry_run` previews).
 
+### Scorecard, debate, filings, stories
+- `services/scorecard.py` grades each day's last sentiment call per company against the price nearest to call + horizon (±25%), from sync prices and the latest quote. Gaps in syncs leave calls ungradable. `syncs.llm_model` records the model.
+- `analysis_mode = debate` makes three sequential LLM calls (bull, bear, verdict); never run them in parallel, the LLM is shared with other services. `llm_reasoning_effort` is passed through as `reasoning_effort` when set.
+- `services/filings.py` reads EDGAR (needs `SEC_USER_AGENT` with a contact or SEC returns 403), summarizes new 8-K/10-Q/10-K filings daily, and for 10-Ks diffs Risk Factors paragraphs against the previous 10-K in code before asking the LLM. Unsummarized filings aren't saved, so they're retried.
+- `services/stories.py` groups each sync's new articles into `news_stories` (one LLM call), marks material ones, and tags themes (material stories only). Material stories and filing summaries go into the analysis prompt via `SyncService.extra_context`.
+
 ### Tests and checks
 `make test` runs `backend/tests` with uv against a throwaway SQLite database. Add a test when changing sync, staleness, parsing, event or pruning logic. The Docker build runs the backend tests and `npm run lint` + `tsc`, so CI fails (and nothing is published) if any of them fail.
 

@@ -8,12 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover, transfer
+from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover, transfer, insights
 from .database import SessionLocal
 from .services.sync_runner import start_sync, run_sync, stale_company_ids, recover_interrupted_syncs, Thresholds
 from .services.quote_service import refresh_quotes
 from .services.maintenance import prune_history
 from .services.events import due_event_syncs, due_signal_syncs
+from .services.filings import check_filings
+from .services.llm_service import LLMService
 from .routers.settings import get_setting, get_float
 from .config import settings as app_settings
 
@@ -50,6 +52,8 @@ async def _auto_refresh_loop() -> None:
         finally:
             db.close()
 
+        # New SEC filings first, so their summaries reach the analyses below
+        await _check_filings()
         if to_run:
             logger.info(f"Auto-refresh: syncing {len(to_run)} companies")
         for sync_id in to_run:
@@ -73,6 +77,23 @@ async def _quote_loop() -> None:
         finally:
             db.close()
         await asyncio.sleep(_QUOTE_CHECK_INTERVAL)
+
+
+async def _check_filings() -> None:
+    db = SessionLocal()
+    try:
+        enabled = get_setting(db, "filings_enabled") == "true"
+        llm = LLMService(get_setting(db, "llm_base_url"), get_setting(db, "llm_model"))
+    finally:
+        db.close()
+    if not enabled:
+        return
+    try:
+        saved = await check_filings(SessionLocal, llm)
+        if saved:
+            logger.info(f"Summarized {saved} new SEC filing(s)")
+    except Exception:
+        logger.exception("SEC filings check failed")
 
 
 def _signal_syncs_in_thread() -> list:
@@ -131,6 +152,7 @@ app.include_router(analyze.router)
 app.include_router(news.router)
 app.include_router(discover.router)
 app.include_router(transfer.router)
+app.include_router(insights.router)
 
 
 @app.get("/health")

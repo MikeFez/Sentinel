@@ -26,6 +26,15 @@ class Analysis:
     key_points: List[str] = field(default_factory=list)
     risks: List[str] = field(default_factory=list)
     changes: Optional[str] = None
+    # Set when the analysis came from a bull/bear debate
+    bull_case: Optional[str] = None
+    bear_case: Optional[str] = None
+
+
+CASE_PROMPT = (
+    "\nArgue the strongest honest {side} case for this company in at most 150 words, using only the data "
+    "above. Be specific (numbers, names, dates). Plain prose: no headings, lists or preamble."
+)
 
 
 def clean_instructions(text: Optional[str]) -> Optional[str]:
@@ -51,6 +60,20 @@ def _eps(value: float) -> str:
     return f"{value:.3f}" if abs(value) < 1 else f"{value:.2f}"
 
 
+def _saved_reasoning_effort() -> str:
+    """The llm_reasoning_effort setting (read here so every caller picks it up)."""
+    from ..database import SessionLocal
+    from ..routers.settings import get_setting
+
+    db = SessionLocal()
+    try:
+        return get_setting(db, "llm_reasoning_effort").strip()
+    except Exception:
+        return ""
+    finally:
+        db.close()
+
+
 def _strings(value: Any, limit: int) -> List[str]:
     if not isinstance(value, list):
         return []
@@ -61,11 +84,15 @@ def parse_analysis(text: str) -> Optional[Analysis]:
     """Parse the model's reply: JSON as requested, or the older SUMMARY:/SENTIMENT: text as a fallback."""
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()
     start, end = text.find("{"), text.rfind("}")
-    if start >= 0 and end > start:
-        try:
-            data = json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            data = None
+    if start >= 0:
+        data = None
+        if end > start:
+            try:
+                data = json.loads(text[start : end + 1])
+            except json.JSONDecodeError:
+                pass
+        if data is None and "SUMMARY:" not in text:
+            return None  # it tried to answer in JSON and got it wrong (or was cut off): let the caller retry
         if isinstance(data, dict) and isinstance(data.get("summary"), str) and data["summary"].strip():
             sentiment = str(data.get("sentiment", "")).strip().lower()
             changes = data.get("changes")
@@ -95,7 +122,7 @@ def parse_analysis(text: str) -> Optional[Analysis]:
 class LLMService:
     """Service for interacting with an OpenAI-compatible chat completions API"""
 
-    def __init__(self, base_url: str, model: str, api_key: Optional[str] = None):
+    def __init__(self, base_url: str, model: str, api_key: Optional[str] = None, reasoning_effort: Optional[str] = None):
         from ..config import settings as _settings
 
         # base_url includes the /v1 suffix, e.g. http://athena.lan:8090/v1
@@ -105,6 +132,8 @@ class LLMService:
         self.headers = {"Authorization": f"Bearer {key}"} if key else {}
         # Set when generate() fails, so callers can report why
         self.last_error: Optional[str] = None
+        # Sent as `reasoning_effort` when set (e.g. "low" / "medium"); not every server accepts it
+        self.reasoning_effort = (reasoning_effort if reasoning_effort is not None else _saved_reasoning_effort()) or None
 
     async def generate(self, prompt: str, timeout: int = 60, json_mode: bool = False) -> Optional[str]:
         """
@@ -125,6 +154,8 @@ class LLMService:
         }
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 url = f"{self.base_url}/chat/completions"
@@ -161,6 +192,8 @@ class LLMService:
         previous: Optional[Dict[str, Any]] = None,
         earnings_history: Optional[List[Dict[str, Any]]] = None,
         peers: Optional[List[str]] = None,
+        extra_context: Optional[str] = None,
+        debate: bool = False,
     ) -> Tuple[Optional[Analysis], str]:
         """
         Analyze a company's data and news.
@@ -169,19 +202,38 @@ class LLMService:
         say what changed. Returns (analysis, prompt); analysis is None if the LLM call failed
         (see last_error).
         """
-        prompt = self._build_analysis_prompt(
-            company_name, ticker, status, stock_data, news_articles, analyst_ratings, insider_transactions,
+        args = (company_name, ticker, status, stock_data, news_articles, analyst_ratings, insider_transactions)
+        kwargs = dict(
             custom_instructions=custom_instructions, previous=previous, earnings_history=earnings_history,
-            peers=peers,
+            peers=peers, extra_context=extra_context,
         )
-        response = await self.generate(prompt, timeout=180, json_mode=True)
-        if response is None:
-            return None, prompt
-        analysis = parse_analysis(response)
+        cases = None
+        if debate:
+            # Bull and bear one after the other (not in parallel), so a shared LLM keeps a slot free
+            data = self._build_analysis_prompt(*args, **kwargs, data_only=True)
+            cases = []
+            for side in ("bull", "bear"):
+                text = await self.generate(data + CASE_PROMPT.format(side=side), timeout=300)
+                if text is None:
+                    return None, data
+                cases.append(text.strip())
+        prompt = self._build_analysis_prompt(*args, **kwargs, debate_cases=cases)
+        analysis = None
+        for _ in range(2):  # models occasionally return malformed JSON; one retry usually fixes it
+            response = await self.generate(prompt, timeout=300, json_mode=True)
+            if response is None:
+                return None, prompt
+            analysis = parse_analysis(response)
+            if analysis is not None:
+                break
         if analysis is None:
-            self.last_error = "the LLM's reply had no usable summary"
-        elif not previous:
+            preview = re.sub(r"\s+", " ", response)[:160]
+            self.last_error = f"the LLM's reply had no usable summary (it began: {preview!r})"
+            return None, prompt
+        if not previous:
             analysis.changes = None
+        if cases:
+            analysis.bull_case, analysis.bear_case = cases
         return analysis, prompt
 
     def _build_analysis_prompt(
@@ -197,8 +249,11 @@ class LLMService:
         previous: Optional[Dict[str, Any]] = None,
         earnings_history: Optional[List[Dict[str, Any]]] = None,
         peers: Optional[List[str]] = None,
+        extra_context: Optional[str] = None,
+        debate_cases: Optional[List[str]] = None,
+        data_only: bool = False,
     ) -> str:
-        """Build the prompt for company analysis"""
+        """Build the analysis prompt. data_only stops after the company data (for the debate cases)."""
         prompt = f"""You are a financial analyst. Analyze the following information about {company_name}"""
 
         if ticker:
@@ -271,11 +326,24 @@ class LLMService:
         else:
             prompt += "\nRecent News: No recent news found\n"
 
+        if extra_context:
+            prompt += f"\n{extra_context.strip()}\n"
+        if data_only:
+            return prompt
+
         if previous:
             prompt += f"\nYour previous analysis ({previous['date']}"
             if previous.get("price") is not None:
                 prompt += f", price then ${previous['price']:.2f}"
             prompt += f"):\nSentiment: {previous.get('sentiment') or 'none'}\n{previous['summary']}\n"
+
+        if debate_cases:
+            bull, bear = debate_cases
+            prompt += (
+                "\nTwo analysts argued opposite sides using the data above.\n"
+                f"Bull case:\n{bull}\n\nBear case:\n{bear}\n\n"
+                "Weigh both against the data. In the summary, say which case is stronger right now and why.\n"
+            )
 
         from ..config import settings as _settings
         instructions = clean_instructions(custom_instructions) or _settings.ai_prompt_instructions

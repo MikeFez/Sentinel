@@ -36,6 +36,8 @@ class FakeStock:
 
 
 class FakeLLM:
+    model = "fake-model"
+
     def __init__(self, analysis=None, error="connection refused"):
         self.analysis = analysis
         self.last_error = None if analysis else error
@@ -68,6 +70,8 @@ def test_success_stores_structured_analysis_and_quote(db):
     assert db.query(NewsArticle).filter(NewsArticle.company_id == c.id).count() == 3
     assert c.quote_price == 10.0 and c.industry == "Rockets"
     assert llm.calls[0]["previous"] is None
+    assert s.llm_model == "fake-model"
+    assert llm.calls[0]["debate"] is True  # the default analysis mode
 
 
 def test_previous_analysis_is_passed_to_the_llm(db):

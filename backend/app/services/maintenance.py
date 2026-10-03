@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..models import NewsArticle, Sync
+from ..models import Filing, NewsArticle, NewsStory, Sync
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,15 @@ def prune_history(db: Session, days: float, now: Optional[datetime] = None) -> i
         .delete(synchronize_session=False)
     )
     pruned += old_news
+    # Stories whose articles are all gone
+    db.query(NewsStory).filter(~NewsStory.articles.any()).delete(synchronize_session=False)
+    # Only each company's newest 10-K needs its full Risk Factors text (to compare with the next one)
+    latest_10k = {}
+    for fid, cid in db.query(Filing.id, Filing.company_id).filter(Filing.form == "10-K").order_by(Filing.filed_on.desc()):
+        latest_10k.setdefault(cid, fid)
+    db.query(Filing).filter(Filing.risk_text.isnot(None), Filing.id.notin_(list(latest_10k.values()))).update(
+        {Filing.risk_text: None}, synchronize_session=False
+    )
     db.commit()
     if pruned and db.bind.dialect.name == "sqlite":
         with db.bind.connect() as conn:

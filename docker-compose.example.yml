@@ -11,5 +11,6 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-http://athena.lan:8090/v1}
       LLM_MODEL: ${LLM_MODEL:-qwen3.8:27b}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-}   # "YourName your@email", for SEC filings
       NEWS_ARTICLE_COUNT: ${NEWS_ARTICLE_COUNT:-10}
     restart: unless-stopped

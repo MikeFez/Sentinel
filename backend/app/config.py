@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     llm_base_url: str = "http://localhost:8080/v1"
     llm_model: str = "qwen3.8:27b"
     llm_api_key: str = ""
+    # Optional `reasoning_effort` for reasoning models (e.g. "low", "medium"); empty = server default
+    llm_reasoning_effort: str = ""
+    # SEC asks automated clients to identify themselves ("Name email@domain") and rejects requests
+    # without a plausible contact; set SEC_USER_AGENT to your own
+    sec_user_agent: str = "Sentinel/1.0 sentinel-selfhosted@example.org"
     news_article_count: int = 10
     finnhub_api_key: str = ""
     auto_refresh_enabled: bool = False
@@ -24,6 +29,10 @@ class Settings(BaseSettings):
     signal_sync: bool = True
     # Keep full sync detail (news, prompts, insider data) for this many days (0 = forever)
     history_detail_days: float = 30.0
+    # Summarize new SEC filings (8-K, 10-Q, 10-K) for public companies, checked daily
+    filings_enabled: bool = True
+    # "debate" (bull case, bear case, then a verdict: 3 LLM calls) or "single" (1 call)
+    analysis_mode: str = "debate"
     # Guidance for the AI analysis. The output format is fixed by the app (see llm_service).
     ai_prompt_instructions: str = (
         "Write for an investor who already follows this company.\n"

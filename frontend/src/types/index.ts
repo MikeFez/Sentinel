@@ -126,6 +126,9 @@ export interface Sync {
   reason: string | null;
   earnings_history: EarningsQuarter[] | null;
   peers: string[] | null;
+  llm_model: string | null;
+  ai_bull: string | null;
+  ai_bear: string | null;
   status: SyncStatus;
 }
 

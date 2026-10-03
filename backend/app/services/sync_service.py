@@ -9,6 +9,7 @@ from ..models.sync import SentimentType
 from .stock_service import StockService
 from .news_service import NewsService
 from .news_store import store_articles
+from .stories import group_new_articles
 from .llm_service import LLMService
 
 logger = logging.getLogger(__name__)
@@ -97,6 +98,13 @@ class SyncService:
             # Save the market data now, so it survives even if the analysis below fails
             self.db.commit()
 
+            # Group new articles into stories first, so material ones reach the analysis prompt
+            try:
+                await group_new_articles(self.db, self.llm_service, company.id, company.name)
+            except Exception as e:
+                self.db.rollback()
+                logger.warning(f"Story grouping failed for {company.name}: {e}")
+
             logger.info(f"Generating AI analysis for {company.name}")
             from ..routers.settings import get_setting as _get_setting
             custom_instructions = _get_setting(self.db, "ai_prompt_instructions") or None
@@ -121,6 +129,8 @@ class SyncService:
                 insider_transactions=insider_transactions,
                 earnings_history=sync.earnings_history,
                 peers=sync.peers,
+                extra_context=self.extra_context(company),
+                debate=_get_setting(self.db, "analysis_mode") == "debate",
                 custom_instructions=custom_instructions,
                 previous=previous and {
                     "date": previous.synced_at.strftime("%Y-%m-%d"),
@@ -131,6 +141,7 @@ class SyncService:
             )
 
             sync.llm_prompt = prompt
+            sync.llm_model = self.llm_service.model
             if analysis is None:
                 # Market data is still good; record why there's no analysis instead of a fake "neutral"
                 sync.error = f"AI analysis unavailable: {self.llm_service.last_error or 'no response from the LLM'}"
@@ -140,6 +151,8 @@ class SyncService:
                 sync.ai_key_points = analysis.key_points
                 sync.ai_risks = analysis.risks
                 sync.ai_changes = analysis.changes
+                sync.ai_bull = analysis.bull_case
+                sync.ai_bear = analysis.bear_case
 
             sync.status = SyncStatus.completed
             self.db.commit()
@@ -155,6 +168,36 @@ class SyncService:
             self.db.commit()
             self.db.refresh(sync)
             return sync
+
+    def extra_context(self, company: Company) -> Optional[str]:
+        """Recent SEC filings and material news stories, as extra prompt context."""
+        from ..models import Filing, NewsStory
+
+        lines = []
+        filings = (
+            self.db.query(Filing)
+            .filter(Filing.company_id == company.id, Filing.summary.isnot(None))
+            .order_by(Filing.filed_on.desc())
+            .limit(3)
+            .all()
+        )
+        if filings:
+            lines.append("Recent SEC filings:")
+            lines += [f"- {f.form} filed {f.filed_on}: {f.summary}" for f in filings]
+            for f in filings:
+                if f.new_risks:
+                    lines.append(f"New risk factors in the {f.form} filed {f.filed_on}: " + "; ".join(f.new_risks))
+        stories = (
+            self.db.query(NewsStory)
+            .filter(NewsStory.company_id == company.id, NewsStory.material.is_(True))
+            .order_by(NewsStory.last_seen_at.desc())
+            .limit(5)
+            .all()
+        )
+        if stories:
+            lines.append("Material news stories recently:")
+            lines += [f"- {s.title}" + (f": {s.summary}" if s.summary else "") for s in stories]
+        return "\n".join(lines) or None
 
     def _fetch_public_data(self, ticker: str, news_count: int) -> dict:
         """Blocking Finnhub fetches for a public company (run in a worker thread)."""

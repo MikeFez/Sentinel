@@ -309,3 +309,86 @@ export const importData = async (data: ExportFile, includeSettings: boolean, dry
   const response = await api.post('/import', { data, include_settings: includeSettings, dry_run: dryRun });
   return response.data;
 };
+
+// Scorecard
+export interface ScoreSummary {
+  calls: number;
+  graded: number;
+  hits: number;
+  hit_rate: number | null;
+  avg_return: Record<'bullish' | 'bearish' | 'neutral' | 'mixed', number | null>;
+  pending: number;
+}
+
+export interface ScoredCall {
+  company_id: string;
+  name: string;
+  at: string;
+  sentiment: string;
+  price: number;
+  later_price: number | null;
+  later_at: string | null;
+  return: number | null;
+  hit: boolean | null;
+  model: string | null;
+}
+
+export interface Scorecard {
+  horizon_days: number;
+  overall: ScoreSummary;
+  by_company: (ScoreSummary & { company_id: string; name: string; ticker: string | null })[];
+  by_model: (ScoreSummary & { model: string })[];
+  recent: ScoredCall[];
+}
+
+export const getScorecard = async (horizon: number, companyId?: string): Promise<Scorecard> => {
+  const response = await api.get('/scorecard', { params: { horizon, company_id: companyId } });
+  return response.data;
+};
+
+// Filings, stories, themes
+export interface FilingSummary {
+  id: string;
+  form: string;
+  filed_on: string;
+  items: string | null;
+  url: string;
+  summary: string | null;
+  new_risks: string[] | null;
+}
+
+export const getFilings = async (companyId: string): Promise<FilingSummary[]> => {
+  const response = await api.get(`/companies/${companyId}/filings`);
+  return response.data;
+};
+
+export interface Story {
+  id: string;
+  company_id: string;
+  company_name: string;
+  company_ticker: string | null;
+  title: string;
+  summary: string | null;
+  material: boolean;
+  themes: string[];
+  first_seen_at: string;
+  last_seen_at: string;
+  articles: { id: string; title: string; url: string; source: string | null; published_at: number | null }[];
+}
+
+export const getStories = async (companyId?: string, materialOnly = false): Promise<Story[]> => {
+  const response = await api.get('/news/stories', { params: { company_id: companyId, material_only: materialOnly, limit: 200 } });
+  return response.data;
+};
+
+export interface ThemeTrend {
+  theme: string;
+  weekly: number[];
+  total: number;
+  rising: boolean;
+}
+
+export const getThemes = async (companyId: string): Promise<ThemeTrend[]> => {
+  const response = await api.get(`/companies/${companyId}/themes`);
+  return response.data;
+};

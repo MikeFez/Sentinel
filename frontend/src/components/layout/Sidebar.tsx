@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Newspaper, CalendarDays, Telescope, Settings, Plus, Search,
-  ChevronDown, ChevronRight, Loader2, AlertTriangle, Bell, Clock,
+  ChevronDown, ChevronRight, Loader2, AlertTriangle, Bell, Clock, Target,
 } from 'lucide-react';
 import { useAppData } from '../../state/useAppData';
 import { triggeredAlert, livePrice } from '../../lib/prices';
@@ -16,6 +16,7 @@ const NAV = [
   { to: '/news', label: 'News', icon: Newspaper },
   { to: '/ipo-calendar', label: 'IPOs', icon: CalendarDays },
   { to: '/research', label: 'Research', icon: Telescope },
+  { to: '/scorecard', label: 'Scorecard', icon: Target },
 ];
 
 const STATUS_LABEL: Record<string, string> = { private: 'Private', pre_ipo: 'Pre-IPO', acquired: 'Acquired' };

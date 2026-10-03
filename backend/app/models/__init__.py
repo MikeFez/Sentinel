@@ -4,5 +4,7 @@ from .sync import Sync, SyncStatus, SentimentType
 from .setting import Setting
 from .ipo_calendar import IPOEntry
 from .news import NewsArticle
+from .filing import Filing
+from .story import NewsStory
 
-__all__ = ["Company", "CompanyStatus", "Tag", "CompanyTag", "Sync", "SyncStatus", "SentimentType", "Setting", "IPOEntry", "NewsArticle"]
+__all__ = ["Company", "CompanyStatus", "Tag", "CompanyTag", "Sync", "SyncStatus", "SentimentType", "Setting", "IPOEntry", "NewsArticle", "Filing", "NewsStory"]

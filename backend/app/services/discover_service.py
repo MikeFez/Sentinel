@@ -10,13 +10,15 @@ from typing import Optional
 from .llm_service import LLMService
 from .stock_service import StockService
 
+from ..config import settings as app_settings_for_edgar
+
 logger = logging.getLogger(__name__)
 
 # In-memory session store — ephemeral by design; nothing persisted until user clicks "Watch"
 _sessions: dict[str, dict] = {}
 
 _EDGAR_HEADERS = {
-    "User-Agent": "Sentinel/1.0 (financial research tool; sentinel@localhost)",
+    "User-Agent": app_settings_for_edgar.sec_user_agent,
     "Accept": "application/json",
 }
 

@@ -5,8 +5,9 @@ import { ago } from '../../lib/format';
 import SentimentBadge from '../shared/SentimentBadge';
 import './AiAnalysisPanel.css';
 
-function AiAnalysisPanel({ sync }: { sync: Sync }) {
+function AiAnalysisPanel({ sync, trackRecord }: { sync: Sync; trackRecord?: string | null }) {
   const [showPrompt, setShowPrompt] = useState(false);
+  const [showDebate, setShowDebate] = useState(false);
   if (!sync.ai_summary) return null;
   const keyPoints = sync.ai_key_points ?? [];
   const risks = sync.ai_risks ?? [];
@@ -21,6 +22,7 @@ function AiAnalysisPanel({ sync }: { sync: Sync }) {
         </div>
         {sync.ai_sentiment && <SentimentBadge sentiment={sync.ai_sentiment} />}
       </div>
+      {trackRecord && <p className="ai-track muted">{trackRecord}</p>}
 
       {sync.ai_changes && (
         <div className="ai-changes">
@@ -48,6 +50,21 @@ function AiAnalysisPanel({ sync }: { sync: Sync }) {
             </div>
           )}
         </div>
+      )}
+
+      {sync.ai_bull && sync.ai_bear && (
+        <>
+          <button className="show-prompt-button" onClick={() => setShowDebate(!showDebate)}>
+            {showDebate ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {showDebate ? 'Hide' : 'Show'} the bull and bear cases behind this verdict
+          </button>
+          {showDebate && (
+            <div className="ai-debate">
+              <div><h3 className="up">Bull case</h3><p>{sync.ai_bull}</p></div>
+              <div><h3 className="down">Bear case</h3><p>{sync.ai_bear}</p></div>
+            </div>
+          )}
+        </>
       )}
 
       {sync.llm_prompt && (

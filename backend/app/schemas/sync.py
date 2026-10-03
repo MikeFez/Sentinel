@@ -36,6 +36,9 @@ class SyncResponse(BaseModel):
     reason: Optional[str] = None
     earnings_history: Optional[List[Dict[str, Any]]] = None
     peers: Optional[List[str]] = None
+    llm_model: Optional[str] = None
+    ai_bull: Optional[str] = None
+    ai_bear: Optional[str] = None
     status: str
 
     model_config = ConfigDict(from_attributes=True)

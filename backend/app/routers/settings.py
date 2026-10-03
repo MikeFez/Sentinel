@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 SETTING_DEFAULTS: dict[str, str] = {
     "llm_base_url": app_settings.llm_base_url,
     "llm_model": app_settings.llm_model,
+    "llm_reasoning_effort": app_settings.llm_reasoning_effort,
     "news_count": str(app_settings.news_article_count),
     "auto_refresh_enabled": str(app_settings.auto_refresh_enabled).lower(),
     "auto_refresh_hours": str(app_settings.auto_refresh_hours),
@@ -22,6 +23,8 @@ SETTING_DEFAULTS: dict[str, str] = {
     "move_sync_percent": str(app_settings.move_sync_percent),
     "earnings_sync": str(app_settings.earnings_sync).lower(),
     "signal_sync": str(app_settings.signal_sync).lower(),
+    "analysis_mode": app_settings.analysis_mode,
+    "filings_enabled": str(app_settings.filings_enabled).lower(),
     "ai_prompt_instructions": app_settings.ai_prompt_instructions,
 }
 

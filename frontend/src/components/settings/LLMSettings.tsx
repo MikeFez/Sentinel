@@ -22,6 +22,9 @@ function LLMSettings() {
   const [moveSyncPercent, setMoveSyncPercent] = useState('5');
   const [earningsSync, setEarningsSync] = useState(true);
   const [signalSync, setSignalSync] = useState(true);
+  const [analysisMode, setAnalysisMode] = useState('debate');
+  const [reasoningEffort, setReasoningEffort] = useState('');
+  const [filingsEnabled, setFilingsEnabled] = useState(true);
   const { toast } = useAppData();
   const [promptInstructions, setPromptInstructions] = useState('');
   const [models, setModels] = useState<string[]>([]);
@@ -55,6 +58,9 @@ function LLMSettings() {
       setMoveSyncPercent(settings.move_sync_percent ?? '5');
       setEarningsSync(settings.earnings_sync !== 'false');
       setSignalSync(settings.signal_sync !== 'false');
+      setAnalysisMode(settings.analysis_mode || 'debate');
+      setReasoningEffort(settings.llm_reasoning_effort ?? '');
+      setFilingsEnabled(settings.filings_enabled !== 'false');
       setPromptInstructions(settings.ai_prompt_instructions || '');
       await loadModels();
     } catch (error) {
@@ -103,6 +109,9 @@ function LLMSettings() {
         move_sync_percent: moveSyncPercent,
         earnings_sync: earningsSync ? 'true' : 'false',
         signal_sync: signalSync ? 'true' : 'false',
+        analysis_mode: analysisMode,
+        llm_reasoning_effort: reasoningEffort.trim(),
+        filings_enabled: filingsEnabled ? 'true' : 'false',
         ai_prompt_instructions: promptInstructions,
       });
       toast('Settings saved', 'success');
@@ -215,6 +224,43 @@ function LLMSettings() {
           )}
           <small className="form-hint">
             The model to use for analysis and summarization
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="analysis-mode">Analysis Style</label>
+          <select id="analysis-mode" value={analysisMode} onChange={(e) => setAnalysisMode(e.target.value)}>
+            <option value="debate">Bull vs. bear debate (3 LLM calls per analysis)</option>
+            <option value="single">Single pass (1 LLM call)</option>
+          </select>
+          <small className="form-hint">
+            The debate writes the strongest bull and bear cases, then a verdict that weighs them. It's more balanced
+            but takes 2–3× as long. The calls run one at a time, so a shared LLM keeps a slot free.
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="reasoning-effort">Reasoning Effort <span className="optional">(optional)</span></label>
+          <input id="reasoning-effort" type="text" value={reasoningEffort} placeholder="Server default" onChange={(e) => setReasoningEffort(e.target.value)} />
+          <small className="form-hint">
+            Sent as <code>reasoning_effort</code> to reasoning models, e.g. <code>low</code> or <code>medium</code>.
+            Lower is much faster. Leave empty if your server doesn't support it; invalid values can make every request fail.
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="filings-toggle">Summarize SEC Filings</label>
+          <div className="toggle-row">
+            <button id="filings-toggle" type="button" role="switch" aria-checked={filingsEnabled}
+              className={`toggle-switch ${filingsEnabled ? 'on' : ''}`} onClick={() => setFilingsEnabled((v) => !v)}>
+              <span className="toggle-thumb" />
+            </button>
+            <span className="toggle-label">{filingsEnabled ? 'Enabled' : 'Disabled'}</span>
+          </div>
+          <small className="form-hint">
+            Once a day, find new 8-K, 10-Q and 10-K filings for public companies and summarize them; annual reports also
+            list risk factors that are new since the previous year. Summaries feed into the AI analysis. Set
+            the <code>SEC_USER_AGENT</code> environment variable to "YourName your@email" (SEC asks for a contact).
           </small>
         </div>
 

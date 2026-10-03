@@ -19,5 +19,7 @@ class NewsArticle(Base):
     summary = Column(Text, nullable=True)
     published_at = Column(Integer, nullable=True, index=True)  # unix seconds
     first_seen_at = Column(UTCDateTime, server_default=func.now(), nullable=False)
+    story_id = Column(String, ForeignKey("news_stories.id", ondelete="SET NULL"), nullable=True, index=True)
 
     company = relationship("Company", back_populates="news")
+    story = relationship("NewsStory", back_populates="articles")

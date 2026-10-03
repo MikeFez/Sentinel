@@ -123,6 +123,7 @@ See `docker-compose.example.yml`. Pulling needs `docker login gitea.fessenden.ap
 | `LLM_BASE_URL` | OpenAI-compatible base URL including `/v1`, e.g. `http://athena.lan:8090/v1` (default until changed in Settings) |
 | `LLM_MODEL` | Model name, e.g. `qwen3.8:27b` (default until changed in Settings) |
 | `LLM_API_KEY` | Optional bearer token for the endpoint (env only, never stored in the DB) |
+| `SEC_USER_AGENT` | Contact for SEC EDGAR requests, e.g. `Jane Doe jane@example.com` (SEC rejects anonymous clients) |
 | `NEWS_ARTICLE_COUNT` | Articles per sync (initial default, `10`) |
 
 ## Project Structure

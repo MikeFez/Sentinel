@@ -88,3 +88,20 @@
 .peer-name { font-weight: 500; }
 .peer-ticker { font-size: 11px; margin-left: 7px; }
 .peer-tracked { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--success); white-space: nowrap; }
+.filings { display: grid; gap: 12px; }
+.filing header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; }
+.filing-form { font-weight: 700; font-size: 13px; color: var(--accent-primary); }
+.filing-date { margin-left: auto; }
+.filing-link { display: inline-flex; align-items: center; gap: 3px; color: var(--text-secondary); }
+.filing p { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+.filing-risks { margin-top: 10px; }
+.filing-risks h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--warning); margin-bottom: 6px; }
+.filing-risks ul { padding-left: 18px; font-size: 14px; color: var(--text-secondary); display: grid; gap: 4px; }
+.themes-note { font-size: 12px; font-weight: 400; margin-left: auto; }
+.themes { display: grid; gap: 8px; }
+.theme-row { display: grid; grid-template-columns: 1fr 96px 24px; align-items: center; gap: 12px; font-size: 14px; }
+.theme-name { display: flex; align-items: center; gap: 8px; }
+.theme-rising { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--warning); }
+.theme-bars { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
+.theme-bars span { flex: 1; background: var(--bg-hover); border-radius: 2px; }
+.theme-bars span.on { background: var(--accent-primary); }

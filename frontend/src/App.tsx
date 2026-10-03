@@ -7,6 +7,7 @@ import CompanyDetail from './components/company/CompanyDetail';
 import IPOCalendar from './components/ipo/IPOCalendar';
 import NewsFeedPage from './components/news/NewsFeedPage';
 import ResearchPage from './components/research/ResearchPage';
+import ScorecardPage from './components/scorecard/ScorecardPage';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
             <Route path="news" element={<NewsFeedPage />} />
             <Route path="ipo-calendar" element={<IPOCalendar />} />
             <Route path="research" element={<ResearchPage />} />
+            <Route path="scorecard" element={<ScorecardPage />} />
             <Route path="settings" element={<SettingsPage />} />
             {/* Pages that were merged into others */}
             <Route path="portfolio" element={<Navigate to="/" replace />} />

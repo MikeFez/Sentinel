@@ -62,5 +62,10 @@ class Sync(Base):
     # Tickers of comparable companies (Finnhub peers)
     peers = Column(JSON, nullable=True)
 
+    # Which model wrote the analysis (for the scorecard), and the debate behind it
+    llm_model = Column(String, nullable=True)
+    ai_bull = Column(Text, nullable=True)
+    ai_bear = Column(Text, nullable=True)
+
     # Relationships
     company = relationship("Company", back_populates="syncs")

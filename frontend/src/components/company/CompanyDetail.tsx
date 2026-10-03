@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { RefreshCw, Pencil, MoreHorizontal, Trash2, Bell, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
-import { deleteCompany, triggerSync, getCompanySyncs, getNewsFeed } from '../../api/client';
+import { deleteCompany, triggerSync, getCompanySyncs, getNewsFeed, getFilings, getScorecard } from '../../api/client';
 import { useAppData } from '../../state/useAppData';
 import { triggeredAlert, livePrice } from '../../lib/prices';
 import type { Sync } from '../../types';
@@ -11,6 +11,8 @@ import AiAnalysisPanel from './AiAnalysisPanel';
 import CompanyNews from './CompanyNews';
 import EarningsHistory from './EarningsHistory';
 import PeersPanel from './PeersPanel';
+import CompanyFilings from './CompanyFilings';
+import ThemesPanel from './ThemesPanel';
 import AnalystRatings from './AnalystRatings';
 import EarningsCalendar from './EarningsCalendar';
 import InsiderTransactions from './InsiderTransactions';
@@ -21,7 +23,7 @@ import PriceChart from './PriceChart';
 import AddCompanyModal from './AddCompanyModal';
 import './CompanyDetail.css';
 
-type Tab = 'overview' | 'news' | 'insiders' | 'history';
+type Tab = 'overview' | 'news' | 'filings' | 'insiders' | 'history';
 const STATUS_LABEL: Record<string, string> = { public: 'Public', private: 'Private', pre_ipo: 'Pre-IPO', acquired: 'Acquired' };
 
 function CompanyDetail() {
@@ -34,6 +36,8 @@ function CompanyDetail() {
   const [showEdit, setShowEdit] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [newsCount, setNewsCount] = useState(0);
+  const [filingCount, setFilingCount] = useState(0);
+  const [trackRecord, setTrackRecord] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const loadSyncs = useCallback(async () => {
@@ -52,7 +56,14 @@ function CompanyDetail() {
   }, [id, loadSyncs]);
 
   useEffect(() => {
-    if (id) getNewsFeed(500, id).then((a) => setNewsCount(a.length)).catch(() => setNewsCount(0));
+    if (!id) return;
+    getNewsFeed(500, id).then((a) => setNewsCount(a.length)).catch(() => setNewsCount(0));
+    getFilings(id).then((f) => setFilingCount(f.length)).catch(() => setFilingCount(0));
+    getScorecard(30, id)
+      .then((s) => setTrackRecord(s.overall.graded
+        ? `Track record: right on ${s.overall.hits} of ${s.overall.graded} bullish/bearish calls, judged 30 days later.`
+        : null))
+      .catch(() => setTrackRecord(null));
   }, [id, syncs.length]);
 
   // Reload the detail once a running sync finishes (the shared company list is polled while syncing)
@@ -107,6 +118,7 @@ function CompanyDetail() {
   const tabs: { id: Tab; label: string; count?: number; show: boolean }[] = [
     { id: 'overview', label: 'Overview', show: true },
     { id: 'news', label: 'News', count: newsCount, show: newsCount > 0 },
+    { id: 'filings', label: 'SEC filings', count: filingCount, show: filingCount > 0 },
     { id: 'insiders', label: 'Insider trades', count: insiderCount, show: insiderCount > 0 },
     { id: 'history', label: 'History', count: syncs.length, show: syncs.length > 0 },
   ];
@@ -213,7 +225,7 @@ function CompanyDetail() {
                 </span>
               </div>
             )}
-            {analysisSync && <AiAnalysisPanel sync={analysisSync} />}
+            {analysisSync && <AiAnalysisPanel sync={analysisSync} trackRecord={company.status === 'public' ? trackRecord : null} />}
             {company.description && <div className="card cd-description">{company.description}</div>}
             {company.status === 'public' && latest && <StockDataPanel sync={latest} ticker={company.ticker} />}
             <div className="cd-two">
@@ -221,11 +233,13 @@ function CompanyDetail() {
               {latest?.earnings_dates && latest.earnings_dates.length > 0 && <EarningsCalendar earnings={latest.earnings_dates} />}
               {latest?.earnings_history && latest.earnings_history.length > 0 && <EarningsHistory quarters={latest.earnings_history} />}
             </div>
+            <ThemesPanel companyId={company.id} refreshKey={latest?.id ?? ''} />
             {company.status === 'public' && latest?.peers && latest.peers.length > 0 && <PeersPanel companyId={company.id} refreshKey={latest.id} />}
           </div>
         )}
 
         {tab === 'news' && <CompanyNews companyId={company.id} refreshKey={latest?.id ?? ''} />}
+        {tab === 'filings' && <CompanyFilings companyId={company.id} />}
         {tab === 'insiders' && latest?.insider_transactions && <InsiderTransactions transactions={latest.insider_transactions} />}
 
         {tab === 'history' && (
