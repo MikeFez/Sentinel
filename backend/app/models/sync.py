@@ -57,6 +57,8 @@ class Sync(Base):
 
     # Why this sync ran, e.g. "Scheduled refresh", "Price moved +6.1%", "Earnings on 2026-11-04"
     reason = Column(String, nullable=True)
+    # When the queue worker began running it (null while it waits its turn)
+    started_at = Column(UTCDateTime, nullable=True)
     # Last few quarters of reported vs estimated EPS
     earnings_history = Column(JSON, nullable=True)
     # Tickers of comparable companies (Finnhub peers)

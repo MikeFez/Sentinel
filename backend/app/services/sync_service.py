@@ -8,8 +8,9 @@ from ..models import Company, Sync, SyncStatus
 from ..models.sync import SentimentType
 from .stock_service import StockService
 from .news_service import NewsService
-from . import activity
+from . import activity, sync_progress
 from .news_store import store_articles
+from .price_history import record_price
 from .stories import group_new_articles
 from .llm_service import LLMService
 
@@ -29,7 +30,14 @@ class SyncService:
         """Run a sync (see _sync_company), recorded on the Activity page with its company and reason."""
         reason = (existing_sync.reason if existing_sync else None) or "sync"
         with activity.context(company_id=company_id), activity.track("sync", reason) as t:
-            sync = await self._sync_company(company_id, news_count, existing_sync)
+            try:
+                sync = await self._sync_company(company_id, news_count, existing_sync)
+            finally:
+                sync_progress.end(company_id)
+            if sync is not None:
+                from . import notifier
+
+                await asyncio.to_thread(notifier.after_sync, sync.id)
             if sync is None:
                 t.fail("company not found")
             elif sync.status == SyncStatus.failed:
@@ -68,8 +76,12 @@ class SyncService:
             self.db.commit()
             self.db.refresh(sync)
 
+        from ..routers.settings import get_setting as _get_setting
+        public = company.status == "public" and bool(company.ticker)
+        sync_progress.begin(company_id, public, debate=_get_setting(self.db, "analysis_mode") == "debate")
+
         try:
-            if company.status == "public" and company.ticker:
+            if public:
                 logger.info(f"Fetching comprehensive data for {company.ticker}")
                 # Finnhub calls are blocking (with retry back-off); keep them off the event loop
                 data = await asyncio.to_thread(self._fetch_public_data, company.ticker, news_count)
@@ -100,6 +112,7 @@ class SyncService:
                 company.quote_price = stock_data["stock_price"]
                 company.quote_change = stock_data.get("price_change")
                 company.quote_at = datetime.now(timezone.utc)
+                record_price(self.db, company.id, company.quote_price, company.quote_at)
 
             sync.raw_news = news_articles
             sync.analyst_ratings = analyst_ratings
@@ -120,7 +133,6 @@ class SyncService:
                 logger.warning(f"Story grouping failed for {company.name}: {e}")
 
             logger.info(f"Generating AI analysis for {company.name}")
-            from ..routers.settings import get_setting as _get_setting
             custom_instructions = _get_setting(self.db, "ai_prompt_instructions") or None
             previous = (
                 self.db.query(Sync)
@@ -190,7 +202,7 @@ class SyncService:
         lines = []
         filings = (
             self.db.query(Filing)
-            .filter(Filing.company_id == company.id, Filing.summary.isnot(None))
+            .filter(Filing.company_id == company.id, Filing.summary.isnot(None), Filing.routine.isnot(True))
             .order_by(Filing.filed_on.desc())
             .limit(3)
             .all()

@@ -1,4 +1,13 @@
-"""Starting and running syncs: shared by the API, "sync stale" and the auto-refresh loop."""
+"""Starting and running syncs: shared by the API, "sync stale" and the auto-refresh loop.
+
+Every sync goes through `queue_sync`, and one worker (`SyncQueue.worker`, started at app startup)
+runs them one at a time, highest priority first: syncs a person asked for, then owned companies,
+then the rest. The LLM is the bottleneck (one call at a time), so running syncs side by side only
+interleaves them and makes each one slower.
+"""
+import asyncio
+import heapq
+import itertools
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -39,15 +48,92 @@ def start_sync(db: Session, company_id: str, reason: Optional[str] = None) -> tu
     return sync, True
 
 
+# Priorities: lower runs first
+MANUAL, OWNED, OTHER = 0, 1, 2
+
+
+class SyncQueue:
+    """Queued sync ids by priority (FIFO within one). Queueing an id again with a higher priority
+    moves it up; the stale heap entry is skipped when it comes out."""
+
+    def __init__(self):
+        self._heap: list = []
+        self._priority: dict[str, int] = {}
+        self._order = itertools.count()
+        self._wake: Optional[asyncio.Event] = None
+        self.running: Optional[str] = None
+
+    def put(self, sync_id: str, priority: int) -> None:
+        if sync_id == self.running or self._priority.get(sync_id, 99) <= priority:
+            return
+        self._priority[sync_id] = priority
+        heapq.heappush(self._heap, (priority, next(self._order), sync_id))
+        if self._wake is not None:
+            self._wake.set()
+
+    def pop(self) -> Optional[str]:
+        while self._heap:
+            priority, _, sync_id = heapq.heappop(self._heap)
+            if self._priority.get(sync_id) == priority:
+                del self._priority[sync_id]
+                return sync_id
+        return None
+
+    def __len__(self) -> int:
+        return len(self._priority)
+
+    async def worker(self) -> None:
+        """Run queued syncs forever, one at a time."""
+        self._wake = asyncio.Event()
+        while True:
+            sync_id = self.pop()
+            if sync_id is None:
+                self._wake.clear()
+                await self._wake.wait()
+                continue
+            self.running = sync_id
+            try:
+                await run_sync(sync_id)
+            except Exception:  # run_sync shouldn't raise; the worker must survive regardless
+                logger.exception(f"Sync {sync_id} failed")
+            finally:
+                self.running = None
+
+
+sync_queue = SyncQueue()
+
+
+def priority_for(db: Session, company_id: str, manual: bool) -> int:
+    if manual:
+        return MANUAL
+    owned = db.query(Company.shares_owned).filter(Company.id == company_id).scalar()
+    return OWNED if (owned or 0) > 0 else OTHER
+
+
+def queue_sync(db: Session, company_id: str, reason: Optional[str] = None, manual: bool = False) -> tuple[Sync, bool]:
+    """Create a sync (or reuse the one already queued or running) and queue it.
+
+    A manual request for a company that's already queued moves it to the front.
+    Returns (sync, created).
+    """
+    sync, created = start_sync(db, company_id, reason)
+    sync_queue.put(sync.id, priority_for(db, company_id, manual))
+    return sync, created
+
+
 async def run_sync(sync_id: str) -> None:
-    """Run a sync created by start_sync, in its own DB session."""
+    """Run a sync created by start_sync, in its own DB session. Never raises: callers include the
+    queue worker, which must keep going when one sync fails."""
     from ..routers.settings import get_setting
 
     db = SessionLocal()
     try:
         sync = db.query(Sync).filter(Sync.id == sync_id).first()
-        if not sync:
+        if not sync or sync.status != SyncStatus.syncing:
             return
+        # From here on a restart counts as an interruption, not a sync still waiting its turn
+        sync.started_at = datetime.now(timezone.utc)
+        db.commit()
         try:
             news_count = int(get_setting(db, "news_count"))
         except ValueError:
@@ -61,14 +147,26 @@ async def run_sync(sync_id: str) -> None:
         await service.sync_company(sync.company_id, news_count=news_count, existing_sync=sync)
     except Exception as exc:  # never leave a sync stuck in "syncing"
         logger.exception(f"Sync {sync_id} crashed")
-        db.rollback()
+        _mark_crashed(sync_id, exc)
+    finally:
+        db.close()
+
+
+def _mark_crashed(sync_id: str, exc: Exception) -> None:
+    # A fresh session: the sync's own may be unusable (e.g. after a failed flush)
+    db = None
+    try:
+        db = SessionLocal()
         sync = db.query(Sync).filter(Sync.id == sync_id).first()
         if sync and sync.status == SyncStatus.syncing:
             sync.status = SyncStatus.failed
             sync.error = f"Sync crashed: {exc}"
             db.commit()
+    except Exception:
+        logger.exception(f"Could not mark sync {sync_id} as failed")
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
 
 class Thresholds:
@@ -136,16 +234,26 @@ def _as_datetime(value) -> Optional[datetime]:
 
 
 def recover_interrupted_syncs() -> None:
-    """Syncs still marked "syncing" at startup were cut off by a restart; mark them failed."""
+    """Re-queue syncs left in "syncing" by a restart.
+
+    Ones that never started just go back in the queue. Ones that were running are marked failed (so the
+    history shows the interruption) and a new sync with the same reason is queued in their place.
+    """
     db = SessionLocal()
     try:
-        n = (
-            db.query(Sync)
-            .filter(Sync.status == SyncStatus.syncing)
-            .update({Sync.status: SyncStatus.failed, Sync.error: "Interrupted by a server restart"})
-        )
+        requeued = interrupted = 0
+        for sync in db.query(Sync).filter(Sync.status == SyncStatus.syncing).order_by(Sync.synced_at).all():
+            manual = (sync.reason or "").startswith(("Manual", "Stale data"))
+            if sync.started_at is None:
+                sync_queue.put(sync.id, priority_for(db, sync.company_id, manual))
+                requeued += 1
+                continue
+            sync.status, sync.error = SyncStatus.failed, "Interrupted by a server restart"
+            db.commit()
+            queue_sync(db, sync.company_id, sync.reason, manual)
+            interrupted += 1
         db.commit()
-        if n:
-            logger.warning(f"Marked {n} interrupted sync(s) as failed")
+        if requeued or interrupted:
+            logger.warning(f"Restart: re-queued {requeued} waiting and retrying {interrupted} interrupted sync(s)")
     finally:
         db.close()

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.models import Company
 from app.models.sync import SyncStatus
@@ -50,3 +50,15 @@ def test_due_event_syncs(db):
     due = dict(due_event_syncs(db, 5, True, now=utc(2026, 10, 5, 21, 0)))
     assert due == {mover.id: "Price moved +7.5% today", reporter.id: "Earnings reported 2026-10-05"}
     assert due_event_syncs(db, 0, False, now=utc(2026, 10, 5, 21, 0)) == []
+
+
+def test_drift_since_the_last_analysis():
+    from app.services.events import drift_reason
+
+    now = datetime(2026, 10, 12, 18, 0, tzinfo=timezone.utc)
+    c = Company(name="R", ticker="R", status="public", quote_price=65.71)
+    long_ago = now - timedelta(days=30)
+    assert drift_reason(c, 119.95, long_ago, 15, now) == "Price −45% since the last analysis"
+    assert drift_reason(c, 70.0, long_ago, 15, now) is None  # only −6%
+    assert drift_reason(c, 119.95, now - timedelta(hours=2), 15, now) is None  # just tried; don't retry yet
+    assert drift_reason(c, 119.95, long_ago, 0, now) is None  # turned off

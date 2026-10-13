@@ -15,8 +15,11 @@ from app.main import app  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def fresh_db():
+    from app.services import sync_runner
+
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    sync_runner.sync_queue = sync_runner.SyncQueue()  # the queue outlives a test otherwise
     yield
 
 

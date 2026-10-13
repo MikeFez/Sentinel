@@ -158,7 +158,9 @@ def fetch_new(db: Session, company: Company, limit_days: Optional[int] = None) -
 
 SUMMARY_PROMPTS = {
     "8-K": "Summarize what this 8-K current report discloses in 1-3 sentences for an investor. Lead with the event "
-           "(results, leadership change, agreement, financing, etc.). If it's routine, say so briefly.",
+           "(results, leadership change, agreement, financing, etc.). If it's routine (only exhibits, a shareholder "
+           "vote tally, a bylaw tweak, or slides or a press release repeating known news), start with \"Routine:\" "
+           "and keep it to one sentence. Results, agreements, leadership changes, financing and deals are never routine.",
     "10-Q": "Summarize this quarterly report in 2-4 sentences for an investor: revenue and profit versus last year, "
             "guidance, and anything notable that changed.",
     "10-K": "Summarize this annual report in 2-4 sentences for an investor: the year's results, strategy, and "
@@ -174,7 +176,7 @@ async def summarize(llm: LLMService, company_name: str, f: dict) -> tuple[Option
         + (f" (items {f['items']})" if f.get("items") else "")
         + f".\n\n{SUMMARY_PROMPTS[f['form']]}\nPlain prose, no preamble.\n\n--- Filing text ---\n{body[:DOC_CHARS]}"
     )
-    summary = await llm.generate(prompt, timeout=180, purpose="filing summary")
+    summary = await llm.generate(prompt, purpose="filing summary")
     if summary is None:
         return None, None, llm.last_error
     new_risks = None
@@ -185,7 +187,7 @@ async def summarize(llm: LLMService, company_name: str, f: dict) -> tuple[Option
                 f"These risk-factor paragraphs are new in {company_name}'s latest 10-K compared with the previous one.\n"
                 "List the new or expanded risks as short phrases (at most 6). Respond with one JSON object: "
                 '{"risks": ["..."]}\n\n' + "\n\n".join(added)[:NEW_RISK_CHARS],
-                timeout=180, json_mode=True, purpose="new risk factors",
+                json_mode=True, purpose="new risk factors",
             )
             new_risks = _risk_list(reply) if reply else None
         else:
@@ -203,11 +205,29 @@ def _risk_list(reply: str) -> Optional[list[str]]:
     return [str(r).strip() for r in risks or [] if str(r).strip()][:6]
 
 
+_ROUTINE = re.compile(r"^\W*routine\W*?[:.\-–—]\s*", re.I)
+# 8-K items that are news by definition (results, agreements, deals, debt, leadership, impairments,
+# restatements...): never routine, whatever the summary says. Models call an earnings 8-K "routine".
+MATERIAL_ITEMS = {"1.01", "1.02", "1.03", "1.05", "2.01", "2.02", "2.03", "2.04", "2.05", "2.06",
+                  "3.01", "4.01", "4.02", "5.01", "5.02"}
+
+
+def split_routine(form: str, summary: Optional[str], items: Optional[str] = None) -> tuple[bool, Optional[str]]:
+    """8-K summaries the LLM marked "Routine: ..." → (routine, the summary without the marker)."""
+    m = _ROUTINE.match(summary or "") if form == "8-K" else None
+    if not m:
+        return False, summary
+    rest = summary[m.end():].strip()
+    material = bool({i.strip() for i in (items or "").split(",")} & MATERIAL_ITEMS)
+    return not material, rest[:1].upper() + rest[1:]
+
+
 def save(db: Session, company_id: str, f: dict, summary, new_risks, error) -> Filing:
+    routine, summary = split_routine(f["form"], summary, f.get("items"))
     filing = Filing(
         company_id=company_id, accession=f["accession"], form=f["form"], filed_on=f["filed_on"],
         items=f.get("items"), url=f["url"], summary=summary, new_risks=new_risks,
-        risk_text=f.get("risk_text"), error=error,
+        risk_text=f.get("risk_text"), error=error, routine=routine,
     )
     db.add(filing)
     db.commit()
@@ -243,8 +263,11 @@ async def check_filings(session_factory, llm: LLMService, hours: float = 24) -> 
                     logger.warning(f"Could not summarize {company.name} {f['form']} {f['filed_on']}: {error}")
                     _last_check.pop(company.id, None)
                     break
-                save(db, company.id, f, summary, new_risks, None)
+                filing = save(db, company.id, f, summary, new_risks, None)
                 saved += 1
+                from . import notifier
+
+                await asyncio.to_thread(notifier.after_filing, filing.id)
     finally:
         db.close()
     return saved

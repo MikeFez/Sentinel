@@ -1,0 +1,7 @@
+.sync-steps { flex: 1; min-width: 0; }
+.sync-steps ol { display: flex; flex-wrap: wrap; gap: 4px 6px; list-style: none; font-size: 13px; }
+.sync-steps li { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.sync-steps li + li::before { content: '→'; color: var(--text-muted); }
+.sync-steps li.done { color: var(--text-secondary); }
+.sync-steps li.current { color: var(--text-primary); font-weight: 600; }
+.sync-steps .sync-steps-wait { margin-top: 4px; font-size: 12px; color: var(--warning); }

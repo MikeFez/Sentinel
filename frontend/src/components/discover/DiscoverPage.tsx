@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Check, ChevronDown, ChevronUp, Loader, Sparkles } from 'lucide-react';
+import ResearchHistory from '../research/ResearchHistory';
 import { startDiscover, getDiscoverSession, analyzeDiscoverCompany, createCompany } from '../../api/client';
 import { useAppData } from '../../state/useAppData';
 import type { DiscoverSession, DiscoverCompany } from '../../api/client';
@@ -173,6 +174,7 @@ function DiscoverPage() {
   const [sortKey, setSortKey] = useState<SortKey>('edgar_hits');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [analyzingAll, setAnalyzingAll] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
@@ -199,6 +201,7 @@ function DiscoverPage() {
           stopPolling();
           setDiscovering(false);
           setAnalyzingAll(false);
+          setHistoryKey((k) => k + 1); // its saved copy now has the results
         }
       } catch {
         stopPolling();
@@ -224,11 +227,30 @@ function DiscoverPage() {
       const initial = await startDiscover(theme.trim());
       sessionIdRef.current = initial.session_id;
       setSession(initial);
+      setHistoryKey((k) => k + 1);
       startPolling(initial.session_id);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(msg || 'Discovery failed. Check the LLM endpoint is reachable.');
       setDiscovering(false);
+    }
+  };
+
+  // Reopen a past discovery from history (analyze, sort and track work on it as before)
+  const reopen = async (id: string) => {
+    stopPolling();
+    setError('');
+    setAnalyzingAll(false);
+    try {
+      const s = await getDiscoverSession(id);
+      sessionIdRef.current = id;
+      setSession(s);
+      setTheme(s.theme);
+      const running = !['complete', 'failed'].includes(s.status) || s.companies.some((c) => c.status === 'analyzing');
+      setDiscovering(running);
+      if (running) startPolling(id);
+    } catch {
+      setError('Could not open that discovery.');
     }
   };
 
@@ -425,6 +447,8 @@ function DiscoverPage() {
       {session?.status === 'failed' && (
         <div className="discover-error">{session.error || 'Discovery failed. Check the LLM endpoint is reachable.'}</div>
       )}
+
+      <ResearchHistory kind="discovery" refreshKey={historyKey} currentId={session?.session_id} onOpen={reopen} />
     </div>
   );
 }

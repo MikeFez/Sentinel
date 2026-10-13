@@ -5,7 +5,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session, load_only
 
-from ..models import Company, Sync
+from ..models import Company, DailyPrice, Sync
 from ..models.sync import SyncStatus
 
 
@@ -18,6 +18,8 @@ class Call:
     model: Optional[str]
     later_price: Optional[float] = None
     later_at: Optional[datetime] = None
+    # Ungraded and the horizon (plus tolerance) has passed: no price was recorded near the date
+    no_data: bool = False
 
     @property
     def ret(self) -> Optional[float]:
@@ -36,14 +38,20 @@ def tolerance(horizon_days: int) -> timedelta:
     return timedelta(days=max(2, round(horizon_days * 0.25)))
 
 
-def grade(series: list[tuple[datetime, float]], calls: list[Call], horizon_days: int) -> list[Call]:
-    """Fill in each call's later price: the point in `series` closest to call + horizon, within tolerance."""
+def grade(series: list[tuple[datetime, float]], calls: list[Call], horizon_days: int, now: Optional[datetime] = None) -> list[Call]:
+    """Fill in each call's later price: the point in `series` closest to call + horizon, within tolerance.
+
+    Calls left ungraded once that window has passed are marked `no_data`; the rest are still pending.
+    """
     tol = tolerance(horizon_days)
+    now = now or datetime.now(timezone.utc)
     for call in calls:
         target = call.at + timedelta(days=horizon_days)
         best = min(series, key=lambda p: abs(p[0] - target), default=None)
         if best and abs(best[0] - target) <= tol and best[0] > call.at:
             call.later_at, call.later_price = best
+        else:
+            call.no_data = now > target + tol
     return calls
 
 
@@ -66,7 +74,11 @@ def summarize(calls: list[Call]) -> dict:
         "hits": sum(1 for c in graded if c.hit),
         "hit_rate": round(100 * sum(1 for c in graded if c.hit) / len(graded), 1) if graded else None,
         "avg_return": {s: avg(c.ret for c in calls if c.sentiment == s) for s in ("bullish", "bearish", "neutral", "mixed")},
-        "pending": sum(1 for c in calls if c.ret is None),
+        # How often each sentiment was called (to spot a model that never calls one of them)
+        "counts": {s: sum(1 for c in calls if c.sentiment == s) for s in ("bullish", "bearish", "neutral", "mixed")},
+        # Not due yet, vs. due but no price was recorded near the date (e.g. Sentinel wasn't running)
+        "pending": sum(1 for c in calls if c.ret is None and not c.no_data),
+        "no_data": sum(1 for c in calls if c.no_data),
     }
 
 
@@ -88,13 +100,15 @@ def scorecard(db: Session, horizon_days: int, company_id: Optional[str] = None, 
         series.setdefault(s.company_id, []).append((s.synced_at, s.stock_price))
         if s.ai_sentiment:
             calls.append(Call(s.company_id, s.synced_at, s.ai_sentiment.value, s.stock_price, s.llm_model))
+    for p in db.query(DailyPrice).filter(DailyPrice.company_id.in_(list(companies))):
+        series.setdefault(p.company_id, []).append((p.at, p.price))
     for c in companies.values():  # the latest quote is a price point too
         if c.quote_price is not None and c.quote_at is not None:
             series.setdefault(c.id, []).append((c.quote_at, c.quote_price))
 
     calls = one_per_day(calls)
     for cid in companies:
-        grade(series.get(cid, []), [c for c in calls if c.company_id == cid], horizon_days)
+        grade(series.get(cid, []), [c for c in calls if c.company_id == cid], horizon_days, now)
 
     by_company = []
     for cid, company in companies.items():
@@ -112,6 +126,7 @@ def scorecard(db: Session, horizon_days: int, company_id: Optional[str] = None, 
                 "company_id": c.company_id, "name": companies[c.company_id].name, "at": c.at, "sentiment": c.sentiment,
                 "price": c.price, "later_price": c.later_price, "later_at": c.later_at,
                 "return": round(c.ret, 2) if c.ret is not None else None, "hit": c.hit, "model": c.model,
+                "no_data": c.no_data,
             }
             for c in sorted(calls, key=lambda c: c.at, reverse=True)[:60]
         ],

@@ -7,6 +7,7 @@ from ..database import get_db
 from ..services.stock_service import StockService
 from ..services.llm_service import LLMService
 from ..config import settings as app_settings
+from ..services import research_store
 from .settings import get_setting
 
 router = APIRouter(prefix="/api/analyze", tags=["analyze"])
@@ -25,6 +26,8 @@ class AnalyzeResponse(BaseModel):
     risks: List[str] = []
     prompt: Optional[str] = None
     stock_data: Optional[Dict[str, Any]] = None
+    # The saved copy in Research history (None if saving failed)
+    id: Optional[str] = None
 
 
 @router.post("", response_model=AnalyzeResponse)
@@ -74,7 +77,7 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
     if analysis is None:
         raise HTTPException(status_code=502, detail=f"AI analysis failed: {llm.last_error or 'no response from the LLM'}")
 
-    return AnalyzeResponse(
+    response = AnalyzeResponse(
         summary=analysis.summary,
         sentiment=analysis.sentiment,
         key_points=analysis.key_points,
@@ -82,3 +85,6 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
         prompt=prompt,
         stock_data=stock_data,
     )
+    title = " · ".join(x for x in (request.ticker and request.ticker.upper(), request.company_name) if x) or "Notes"
+    response.id = research_store.save("analysis", title, {"request": request.model_dump(), "result": response.model_dump()})
+    return response

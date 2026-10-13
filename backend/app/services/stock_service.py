@@ -16,6 +16,10 @@ _BACKOFF_BASE = 1.0   # seconds; doubles each retry, caps at 32s
 finnhub_status: Dict[str, Any] = {"ok": None, "error": None, "at": None}
 
 
+# False once Finnhub has refused price history (stock/candle is a paid endpoint)
+_candles_in_plan = True
+
+
 def _record(ok: bool, error: Optional[str] = None) -> None:
     from datetime import datetime, timezone
 
@@ -42,11 +46,15 @@ class StockService:
             return data
 
     def _request_with_retries(self, url: str, params: Dict[str, Any], timeout: int) -> tuple:
+        # The key goes in a header, never the URL: httpx puts the URL in its error messages, and those
+        # end up in logs, the Activity page and the Finnhub status shown in Settings.
+        params = {k: v for k, v in params.items() if k != "token"}
+        headers = {"X-Finnhub-Token": self.api_key} if self.api_key else {}
         delay = _BACKOFF_BASE
         for attempt in range(_MAX_RETRIES):
             try:
                 with httpx.Client() as client:
-                    response = client.get(url, params=params, timeout=timeout)
+                    response = client.get(url, params=params, headers=headers, timeout=timeout)
             except httpx.HTTPError as e:
                 _record(False, f"Could not reach Finnhub: {e}")
                 raise
@@ -429,7 +437,8 @@ class StockService:
         Returns:
             Opening price on IPO day, or None if unavailable
         """
-        if not self.api_key:
+        global _candles_in_plan
+        if not self.api_key or not _candles_in_plan:
             return None
 
         try:
@@ -457,6 +466,14 @@ class StockService:
 
             return None
 
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 403:
+                # Price history isn't in the free plan; don't ask again for every IPO until a restart
+                logger.info("Finnhub price history (stock/candle) isn't in this plan; IPO debut prices are skipped")
+                _candles_in_plan = False
+            else:
+                logger.error(f"Error fetching debut price for {ticker} on {ipo_date}: {e}")
+            return None
         except Exception as e:
             logger.error(f"Error fetching debut price for {ticker} on {ipo_date}: {e}")
             return None

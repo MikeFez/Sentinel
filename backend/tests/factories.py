@@ -15,7 +15,7 @@ def sync(db, company, hours_ago=0.0, status=SyncStatus.completed, sentiment=None
     s = Sync(
         company_id=company.id,
         status=status,
-        synced_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago),
+        synced_at=kw.pop("synced_at", None) or datetime.now(timezone.utc) - timedelta(hours=hours_ago),
         ai_sentiment=SentimentType(sentiment) if sentiment else None,
         ai_summary=summary,
         **kw,

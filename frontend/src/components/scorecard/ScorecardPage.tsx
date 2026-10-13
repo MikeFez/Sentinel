@@ -5,6 +5,9 @@ import { money, parseTime, shortDate } from '../../lib/format';
 import SentimentBadge from '../shared/SentimentBadge';
 import type { SentimentType } from '../../types';
 import './ScorecardPage.css';
+import { useTitle } from '../../lib/useTitle';
+import { sentimentBias } from '../../lib/bias';
+import { AlertTriangle } from 'lucide-react';
 
 const HORIZONS = [7, 30, 90];
 
@@ -12,6 +15,7 @@ const signed = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : '−
 const rate = (s: ScoreSummary) => (s.hit_rate == null ? '—' : `${Math.round(s.hit_rate)}%`);
 
 function ScorecardPage() {
+  useTitle('AI scorecard');
   const [horizon, setHorizon] = useState(30);
   const [data, setData] = useState<Scorecard | null>(null);
 
@@ -47,6 +51,9 @@ function ScorecardPage() {
         <div className="card muted">No sentiment calls on public companies yet.</div>
       ) : (
         <>
+          {sentimentBias(o) && (
+            <div className="notice notice-warning"><AlertTriangle size={16} /><span>{sentimentBias(o)}</span></div>
+          )}
           <div className="sc-tiles">
             <div className="card sc-tile">
               <span className="sc-label">Right</span>
@@ -64,9 +71,12 @@ function ScorecardPage() {
               <span className="muted">average price change</span>
             </div>
             <div className="card sc-tile">
-              <span className="sc-label">Not gradable yet</span>
+              <span className="sc-label">Waiting</span>
               <span className="sc-value">{o.pending}</span>
-              <span className="muted">too recent, or no price near day {horizon}</span>
+              <span className="muted">
+                {horizon} days haven't passed yet
+                {o.no_data > 0 && <> · {o.no_data} can't be graded (no price recorded near the date)</>}
+              </span>
             </div>
           </div>
 
@@ -118,15 +128,16 @@ function ScorecardPage() {
                     <td className="r num hide-sm">{money(c.price)}</td>
                     <td className="r num hide-sm" title={c.later_at ? parseTime(c.later_at).toLocaleString() : undefined}>{money(c.later_price)}</td>
                     <td className={`r num ${c.return == null ? 'muted' : c.return >= 0 ? 'up' : 'down'}`}>{signed(c.return)}</td>
-                    <td className={c.hit == null ? 'muted' : c.hit ? 'up' : 'down'}>{c.return == null ? 'Pending' : c.hit == null ? 'Not graded' : c.hit ? 'Right' : 'Wrong'}</td>
+                    <td className={c.hit == null ? 'muted' : c.hit ? 'up' : 'down'}>{c.return == null ? (c.no_data ? 'No price data' : 'Pending') : c.hit == null ? 'Not graded' : c.hit ? 'Right' : 'Wrong'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </section>
           <p className="muted sc-note">
-            Prices come from syncs and quote refreshes, so periods without syncs leave calls ungradable. Price moves include
-            the whole market's moves; this isn't benchmarked.
+            Prices come from syncs and the daily quote refresh, which records each trading day's close while Sentinel is
+            running. Calls whose date fell in a stretch when it wasn't running can't be graded. Price moves include the whole
+            market's moves; this isn't benchmarked.
           </p>
         </>
       )}

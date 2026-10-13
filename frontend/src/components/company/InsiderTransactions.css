@@ -38,13 +38,13 @@
   display: flex;
   gap: 1rem;
   padding: 1rem;
-  background: var(--background);
+  background: var(--bg-primary);
   border-radius: 8px;
   transition: background 0.2s ease;
 }
 
 .transaction-item:hover {
-  background: var(--border-light);
+  background: var(--border-color);
 }
 
 .transaction-icon {
@@ -54,7 +54,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--surface);
+  background: var(--bg-secondary);
   flex-shrink: 0;
 }
 
@@ -63,7 +63,7 @@
 }
 
 .transaction-icon .transaction-sell {
-  color: var(--danger);
+  color: var(--error);
 }
 
 .transaction-content {
@@ -95,13 +95,13 @@
 }
 
 .transaction-type.buy {
-  background: var(--success-light);
-  color: var(--success-dark);
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
 }
 
 .transaction-type.sell {
-  background: var(--danger-light);
-  color: var(--danger-dark);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
 }
 
 .transaction-details {
@@ -140,7 +140,7 @@
   padding: 1rem;
   color: var(--text-muted);
   font-size: 0.85rem;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-color);
   margin-top: 0.5rem;
 }
 

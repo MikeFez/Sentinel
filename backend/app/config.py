@@ -11,6 +11,24 @@ class Settings(BaseSettings):
     llm_max_concurrent: int = 1
     # Optional `reasoning_effort` for reasoning models (e.g. "low", "medium"); empty = server default
     llm_reasoning_effort: str = ""
+    # Output token budget per LLM call (sent as max_tokens; 0 = server default). Reasoning models spend
+    # much of it thinking: a budget that's too small ends the reply before any answer is written.
+    llm_max_tokens: int = 16384
+    # Where notifications go: Apprise URLs (ntfy://, pover://, discord://, mailto://...), separated by
+    # spaces, commas or newlines. They hold tokens, so they come from the environment only, never the DB.
+    notify_urls: str = ""
+    # Sentinel's own address (e.g. http://athena.lan:8000), for links in notifications; optional
+    sentinel_url: str = ""
+    # Which notifications to send (each can be switched off in Settings)
+    notify_price_alerts: bool = True
+    notify_big_moves: bool = True
+    notify_sentiment_flips: bool = True
+    notify_earnings: bool = True
+    notify_material_news: bool = True
+    notify_filings: bool = True
+    notify_problems: bool = True
+    notify_digest: bool = True
+    notify_digest_day: str = "monday"
     # SEC asks automated clients to identify themselves ("Name email@domain") and rejects requests
     # without a plausible contact; set SEC_USER_AGENT to your own
     sec_user_agent: str = "Sentinel/1.0 sentinel-selfhosted@example.org"
@@ -25,6 +43,8 @@ class Settings(BaseSettings):
     private_refresh_days: float = 7.0
     # Re-sync a public company when its price moves at least this much in a day (0 = off)
     move_sync_percent: float = 5.0
+    # Re-analyze when the price is this far (%) from the price the last analysis was written at; 0 = off
+    analysis_drift_percent: float = 15.0
     # Re-sync after a company reports earnings
     earnings_sync: bool = True
     # Re-sync when analyst ratings shift or an insider makes a large trade (checked daily)

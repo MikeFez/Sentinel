@@ -1,6 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import AnalyzePage from '../analyze/AnalyzePage';
 import DiscoverPage from '../discover/DiscoverPage';
+import { useTitle } from '../../lib/useTitle';
 
 const TABS = [
   { id: 'analyze', label: 'Analyze a company', blurb: 'A one-off AI read on any ticker or company, without tracking it.' },
@@ -8,6 +9,7 @@ const TABS = [
 ] as const;
 
 function ResearchPage() {
+  useTitle('Research');
   const [params, setParams] = useSearchParams();
   const tab = TABS.find((t) => t.id === params.get('tab')) ?? TABS[0];
 

@@ -11,7 +11,7 @@
   gap: 1rem;
   margin-bottom: 1.75rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
 }
 
@@ -22,7 +22,7 @@
 }
 
 .news-icon {
-  color: var(--primary);
+  color: var(--accent-primary);
   flex-shrink: 0;
 }
 
@@ -73,7 +73,7 @@
 
 .news-item:hover {
   background: var(--bg-secondary);
-  border-color: var(--border-light);
+  border-color: var(--border-color);
   text-decoration: none;
 }
 
@@ -88,15 +88,15 @@
 .news-company {
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--accent-primary);
 }
 
 .news-ticker {
   font-size: 0.68rem;
   font-weight: 700;
   font-family: 'Courier New', monospace;
-  color: var(--primary);
-  background: var(--primary-light);
+  color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.12);
   padding: 1px 5px;
   border-radius: 3px;
 }

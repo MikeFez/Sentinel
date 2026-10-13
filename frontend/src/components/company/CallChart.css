@@ -1,0 +1,46 @@
+.call-chart { margin: 0 0 16px; }
+.call-chart.call-chart-empty { padding: 24px 0; }
+.call-chart .cc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.call-chart figcaption { font-size: 14px; }
+.call-chart .cc-ranges { margin-bottom: 0; }
+
+.call-chart .cc-plot { position: relative; width: 100%; }
+.call-chart svg { display: block; overflow: visible; }
+
+/* Recessive chrome: hairline grid, muted axis text */
+.call-chart .cc-grid { stroke: var(--border-color); stroke-width: 1; }
+.call-chart .cc-axis { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.call-chart .cc-gap { fill: var(--bg-primary); opacity: 0.6; }
+
+/* One series: a neutral accent line, so the colored call markers stand out */
+.call-chart .cc-line { fill: none; stroke: var(--accent-primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.call-chart .cc-marker { stroke: var(--bg-secondary); stroke-width: 2; paint-order: stroke; }
+.call-chart .cc-bullish { fill: var(--sentiment-bullish); }
+.call-chart .cc-bearish { fill: var(--sentiment-bearish); }
+.call-chart .cc-mixed { fill: var(--sentiment-mixed); }
+.call-chart .cc-neutral { fill: var(--sentiment-neutral); }
+
+.call-chart .cc-crosshair { stroke: var(--text-muted); stroke-width: 1; }
+.call-chart .cc-dot { fill: var(--accent-primary); stroke: var(--bg-secondary); stroke-width: 2; }
+.call-chart .cc-hit { fill: transparent; cursor: crosshair; }
+
+.call-chart .cc-tip {
+  position: absolute;
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  pointer-events: none;
+}
+.call-chart .cc-tip strong { font-size: 14px; color: var(--text-primary); }
+.call-chart .cc-tip-call { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+
+.call-chart .cc-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+.call-chart .cc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.call-chart .cc-legend svg, .call-chart .cc-tip svg { overflow: visible; }
+.call-chart .cc-lone { fill: var(--accent-primary); }

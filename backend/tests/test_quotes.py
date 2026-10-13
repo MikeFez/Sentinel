@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.models import Company
 from app.services.quote_service import market_open, last_close, quote_due
+from tests import factories as f
 
 
 def utc(*args):
@@ -30,3 +31,16 @@ def test_quote_due():
     assert quote_due(Company(quote_at=utc(2026, 10, 2, 19, 55)), weekend)
     assert not quote_due(Company(quote_at=utc(2026, 10, 2, 20, 3)), weekend)
     assert quote_due(Company(quote_at=utc(2026, 10, 5, 14, 0)), utc(2026, 10, 5, 14, 5))  # market open
+
+
+def test_record_price_keeps_the_latest_per_new_york_day(db):
+    from app.models import DailyPrice
+    from app.services.price_history import record_price
+    c = f.company(db)
+    close = datetime(2026, 10, 9, 20, 5, tzinfo=timezone.utc)  # Fri 4:05 PM in New York
+    record_price(db, c.id, 10.0, close - timedelta(hours=3))
+    record_price(db, c.id, 11.0, close)
+    record_price(db, c.id, 9.0, close - timedelta(hours=1))  # older than what's stored: ignored
+    db.commit()
+    [row] = db.query(DailyPrice).all()
+    assert (row.day, row.price) == ("2026-10-09", 11.0)

@@ -56,7 +56,8 @@
 .db-analysis { display: block; padding: 8px; border-radius: 6px; color: var(--text-primary); }
 .db-analysis:hover { background: var(--bg-hover); text-decoration: none; }
 .db-analysis-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.db-analysis-time { margin-left: auto; font-size: 12px; }
+.db-analysis-time { margin-left: auto; font-size: 12px; white-space: nowrap; }
+.db-analysis-head .db-company-name { white-space: nowrap; }
 .db-analysis p {
   font-size: 13px;
   color: var(--text-secondary);
@@ -73,3 +74,38 @@
   .db-portfolio-head { flex-direction: column; align-items: flex-start; }
   .db-total { align-items: flex-start; }
 }
+
+.db-table .db-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+.db-table .db-sort:hover, .db-table .db-sort.active { color: var(--text-primary); }
+.db-table th.r .db-sort { flex-direction: row-reverse; }
+
+.db-company .db-sent-dot { width: 7px; height: 7px; border-radius: 50%; align-self: center; flex-shrink: 0; }
+.db-company .sentiment-dot-bullish { background: var(--sentiment-bullish); }
+.db-company .sentiment-dot-bearish { background: var(--sentiment-bearish); }
+.db-company .sentiment-dot-neutral { background: var(--sentiment-neutral); }
+.db-company .sentiment-dot-mixed { background: var(--sentiment-mixed); }
+
+.db-more { margin-top: 6px; }
+
+.db-analysis.db-analysis-old .db-analysis-head, .db-analysis.db-analysis-old p { opacity: 0.6; }
+.db-analysis .db-drift { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 12px; color: var(--warning); }
+.db-bias { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+
+.db-table .db-headline-cell { max-width: 0; text-align: left; }
+.db-table .db-headline {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.db-table .db-headline:hover { color: var(--text-primary); }

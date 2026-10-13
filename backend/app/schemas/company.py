@@ -58,6 +58,8 @@ class LatestAnalysis(BaseModel):
     ai_sentiment: Optional[str] = None
     ai_summary: str
     ai_changes: Optional[str] = None
+    # The price when the analysis was written, to show how far it has moved since
+    stock_price: Optional[float] = None
     # Sentiment of the analysis before this one, to spot flips
     previous_sentiment: Optional[str] = None
 
@@ -74,11 +76,27 @@ class CompanyResponse(CompanyBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class Headline(BaseModel):
+    title: str
+    url: str
+    published_at: Optional[int] = None  # unix seconds
+
+
+class SyncProgress(BaseModel):
+    steps: List[str]
+    current: int
+    # True while waiting for a free LLM slot (another sync or job is using it)
+    waiting: bool = False
+
+
 class CompanyListResponse(CompanyResponse):
     latest_sync: Optional[SyncSummary] = None
     latest_analysis: Optional[LatestAnalysis] = None
     is_stale: bool = False
     is_syncing: bool = False
+    sync_progress: Optional[SyncProgress] = None
+    latest_news_at: Optional[datetime] = None
+    latest_headline: Optional[Headline] = None
     sync_error: Optional[str] = None
     has_alert: bool = False
 

@@ -11,7 +11,7 @@ function TagManager() {
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
   const [formData, setFormData] = useState({ name: '', color: '#6366f1' });
   const [loading, setLoading] = useState(false);
-  const { refresh, toast } = useAppData();
+  const { refresh, toast, confirm } = useAppData();
 
   useEffect(() => {
     loadTags();
@@ -48,7 +48,14 @@ function TagManager() {
   };
 
   const handleDelete = async (tagId: string) => {
-    if (!confirm('Delete this tag? Companies keep their data; they just lose the tag.')) return;
+    const tag = tags.find((t) => t.id === tagId);
+    const ok = await confirm({
+      title: `Delete the tag${tag ? ` “${tag.name}”` : ''}?`,
+      message: 'Companies keep their data; they just lose the tag.',
+      confirmLabel: 'Delete tag',
+      danger: true,
+    });
+    if (!ok) return;
 
     try {
       await deleteTag(tagId);
@@ -75,7 +82,7 @@ function TagManager() {
   return (
     <div className="tag-manager">
       <div className="tag-manager-header">
-        <h2>Tag Management</h2>
+        <h2>Tags</h2>
         {!showForm && (
           <button className="btn btn-primary" onClick={() => setShowForm(true)}>
             <Plus size={16} />

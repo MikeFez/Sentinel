@@ -4,7 +4,7 @@ import time
 import httpx
 import logging
 
-from . import activity
+from . import activity, sync_progress
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Dict, Any
 import json
@@ -14,7 +14,19 @@ logger = logging.getLogger(__name__)
 
 SENTIMENTS = ("bullish", "bearish", "neutral", "mixed")
 
-OUTPUT_FORMAT = """Respond with one JSON object and nothing else:
+# What each sentiment means. Without this, models lean on analyst consensus (which skews bullish)
+# and rarely call anything bearish; the scorecard showed 0 bearish calls in 68.
+SENTIMENT_GUIDE = """Choosing the sentiment: it is your outlook for the stock over the next 1-3 months at today's price,
+not a verdict on the company's quality.
+- bullish: you expect the stock to rise; the positives outweigh the risks at this price.
+- bearish: you expect it to fall or lag: weakening fundamentals, a thesis that isn't playing out, a valuation
+  the news doesn't support, or a slide the news explains. A good company can still be a bearish call.
+- mixed: strong signals in both directions. neutral: little signal either way.
+Analyst ratings lean bullish in general; weigh them as one input, not the answer."""
+
+OUTPUT_FORMAT = SENTIMENT_GUIDE + """
+
+Respond with one JSON object and nothing else:
 {
   "summary": "2-3 short paragraphs on recent developments and the company's current situation",
   "sentiment": "bullish" | "bearish" | "neutral" | "mixed",
@@ -69,6 +81,10 @@ def _eps(value: float) -> str:
 # capacity for other users. One semaphore per event loop.
 _slots: dict = {}
 
+# Seconds to wait for a background LLM call. Reasoning models may use most of the output budget
+# (LLM_MAX_TOKENS, 16k by default) before answering: at ~50 tokens/s that alone is over 5 minutes.
+BACKGROUND_TIMEOUT = 600
+
 
 def _llm_slot() -> asyncio.Semaphore:
     loop = asyncio.get_running_loop()
@@ -80,18 +96,31 @@ def _llm_slot() -> asyncio.Semaphore:
     return _slots[loop]
 
 
-def _saved_reasoning_effort() -> str:
-    """The llm_reasoning_effort setting (read here so every caller picks it up)."""
+def _saved_setting(key: str) -> str:
+    """A setting read here, so every LLMService picks up changes made in Settings ("" on failure)."""
     from ..database import SessionLocal
     from ..routers.settings import get_setting
 
     db = SessionLocal()
     try:
-        return get_setting(db, "llm_reasoning_effort").strip()
+        return get_setting(db, key).strip()
     except Exception:
         return ""
     finally:
         db.close()
+
+
+def _saved_reasoning_effort() -> str:
+    return _saved_setting("llm_reasoning_effort")
+
+
+def _saved_max_tokens() -> int:
+    from ..config import settings
+
+    try:
+        return max(0, int(float(_saved_setting("llm_max_tokens"))))
+    except ValueError:
+        return settings.llm_max_tokens
 
 
 def _strings(value: Any, limit: int) -> List[str]:
@@ -152,10 +181,14 @@ class LLMService:
         self.headers = {"Authorization": f"Bearer {key}"} if key else {}
         # Set when generate() fails, so callers can report why
         self.last_error: Optional[str] = None
+        # The last failure was an empty answer (worth one retry: reasoning models sometimes stop early)
+        self.last_empty = False
         # Sent as `reasoning_effort` when set (e.g. "low" / "medium"); not every server accepts it
         self.reasoning_effort = (reasoning_effort if reasoning_effort is not None else _saved_reasoning_effort()) or None
+        # Sent as `max_tokens` (0 = leave it to the server); the LLM_MAX_TOKENS env var is the default
+        self.max_tokens = _saved_max_tokens()
 
-    async def generate(self, prompt: str, timeout: int = 60, json_mode: bool = False, purpose: str = "other") -> Optional[str]:
+    async def generate(self, prompt: str, timeout: int = BACKGROUND_TIMEOUT, json_mode: bool = False, purpose: str = "other") -> Optional[str]:
         """
         Generate text using the configured LLM.
 
@@ -169,8 +202,11 @@ class LLMService:
         Each call is recorded on the Activity page under `purpose`.
         """
         waited = time.perf_counter()
-        async with _llm_slot():
+        slot = _llm_slot()
+        sync_progress.step(purpose, waiting=slot.locked())
+        async with slot:
             waited = time.perf_counter() - waited
+            sync_progress.step(purpose)
             with activity.track("llm", purpose) as t:
                 result = await self._generate(prompt, timeout, json_mode, t)
                 if result is None:
@@ -181,6 +217,7 @@ class LLMService:
 
     async def _generate(self, prompt: str, timeout: int, json_mode: bool, t) -> Optional[str]:
         self.last_error = None
+        self.last_empty = False
         body = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -190,22 +227,39 @@ class LLMService:
             body["response_format"] = {"type": "json_object"}
         if self.reasoning_effort:
             body["reasoning_effort"] = self.reasoning_effort
+        if self.max_tokens > 0:
+            body["max_tokens"] = self.max_tokens
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 url = f"{self.base_url}/chat/completions"
                 response = await client.post(url, headers=self.headers, json=body)
-                if json_mode and response.status_code in (400, 422):
-                    # Some servers don't support response_format; the prompt asks for JSON anyway
-                    body.pop("response_format")
-                    response = await client.post(url, headers=self.headers, json=body)
+                # Some servers reject response_format, or a max_tokens larger than their context; drop
+                # them one at a time (the prompt asks for JSON anyway)
+                for optional in ("response_format", "max_tokens"):
+                    if response.status_code in (400, 422) and optional in body:
+                        body.pop(optional)
+                        response = await client.post(url, headers=self.headers, json=body)
                 response.raise_for_status()
                 data = response.json()
                 usage = data.get("usage") or {}
                 t.prompt_tokens, t.completion_tokens = usage.get("prompt_tokens"), usage.get("completion_tokens")
                 t.note(self.model)
-                content = data["choices"][0]["message"].get("content") or ""
+                choice = data["choices"][0]
+                content = choice["message"].get("content") or ""
                 # Some servers return reasoning inline; drop it
-                return re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
+                if content:
+                    return content
+                self.last_empty = True
+                if choice.get("finish_reason") == "length":
+                    self.last_error = (
+                        f"The LLM ran out of output tokens ({usage.get('completion_tokens', '?')}) before answering, "
+                        "probably while reasoning; raise LLM_MAX_TOKENS or set a lower Reasoning Effort"
+                    )
+                else:
+                    self.last_error = "The LLM returned an empty answer"
+                logger.error(f"LLM generation failed: {self.last_error}")
+                return None
 
         except httpx.TimeoutException:
             self.last_error = f"The LLM at {self.base_url} timed out after {timeout}s"
@@ -250,15 +304,17 @@ class LLMService:
             data = self._build_analysis_prompt(*args, **kwargs, data_only=True)
             cases = []
             for side in ("bull", "bear"):
-                text = await self.generate(data + CASE_PROMPT.format(side=side), timeout=300, purpose=f"{side} case")
+                text = await self.generate(data + CASE_PROMPT.format(side=side), purpose=f"{side} case")
                 if text is None:
                     return None, data
                 cases.append(text.strip())
         prompt = self._build_analysis_prompt(*args, **kwargs, debate_cases=cases)
         analysis = None
-        for _ in range(2):  # models occasionally return malformed JSON; one retry usually fixes it
-            response = await self.generate(prompt, timeout=300, json_mode=True, purpose="analysis")
+        for attempt in range(2):  # models occasionally return malformed JSON or nothing; one retry usually fixes it
+            response = await self.generate(prompt, json_mode=True, purpose="analysis")
             if response is None:
+                if self.last_empty and attempt == 0:
+                    continue
                 return None, prompt
             analysis = parse_analysis(response)
             if analysis is not None:

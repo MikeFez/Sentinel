@@ -1,5 +1,5 @@
 from datetime import timezone
-from sqlalchemy import create_engine, DateTime
+from sqlalchemy import create_engine, event, DateTime
 from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import declarative_base, sessionmaker
 from .config import settings
@@ -7,8 +7,17 @@ from .config import settings
 DATABASE_URL = settings.database_url
 
 engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
+    # Wait up to 30 s for another writer instead of failing at once with "database is locked"
+    DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 30}
 )
+
+if DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_connection, _record):
+        # WAL lets pages read while a sync writes (the default journal blocks readers during writes)
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

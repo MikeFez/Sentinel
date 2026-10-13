@@ -1,0 +1,11 @@
+.research-history { margin-top: 16px; }
+.research-history ul { list-style: none; display: grid; gap: 2px; margin: 0 -8px; }
+.research-history li { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
+.research-history li:hover, .research-history li.current { background: var(--bg-hover); }
+.research-history .rh-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 8px; text-align: left; color: var(--text-primary); font-size: 14px; }
+.research-history .rh-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-history .rh-meta { font-size: 13px; white-space: nowrap; }
+.research-history .rh-when { margin-left: auto; font-size: 12px; white-space: nowrap; }
+.research-history .rh-delete { opacity: 0; margin-right: 4px; }
+.research-history li:hover .rh-delete, .research-history .rh-delete:focus-visible { opacity: 1; }
+@media (hover: none) { .research-history .rh-delete { opacity: 1; } }

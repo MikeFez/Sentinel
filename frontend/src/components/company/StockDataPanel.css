@@ -13,70 +13,38 @@
   color: var(--text-primary);
 }
 
-.price-chart {
-  margin-bottom: 24px;
+.stock-data-panel .sd-chart {
+  margin-bottom: 20px;
   border-radius: 8px;
   overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-color);
 }
 
-.stock-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-.stock-item {
-  padding: 16px;
-  background-color: var(--bg-tertiary);
-  border-radius: 8px;
-}
-
-.stock-price-main {
-  grid-column: span 2;
-}
-
-.stock-label {
-  font-size: 13px;
+.stock-data-panel .sd-label {
+  font-size: 12px;
   color: var(--text-secondary);
-  margin-bottom: 8px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
   font-weight: 500;
 }
 
-.stock-value {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
+/* 52-week range: a track with the current price marked on it */
+.stock-data-panel .sd-range { margin-bottom: 20px; }
+.stock-data-panel .sd-range-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; font-size: 13px; }
+.stock-data-panel .sd-range-track { position: relative; height: 6px; border-radius: 3px; background: var(--bg-tertiary); }
+.stock-data-panel .sd-range-fill { height: 100%; border-radius: 3px; background: color-mix(in srgb, var(--accent-primary) 45%, var(--bg-tertiary)); }
+.stock-data-panel .sd-range-marker {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--bg-secondary);
 }
+.stock-data-panel .sd-range-ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
 
-.stock-value-large {
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 8px;
-}
-
-.price-change-large {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.price-change-large.positive {
-  color: var(--sentiment-bullish);
-}
-
-.price-change-large.negative {
-  color: var(--sentiment-bearish);
-}
-
-@media (max-width: 768px) {
-  .stock-price-main {
-    grid-column: span 1;
-  }
-}
+.stock-data-panel .sd-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.stock-data-panel .sd-stat { padding: 12px 14px; border-radius: 8px; background: var(--bg-tertiary); }
+.stock-data-panel .sd-stat dd { margin-top: 4px; font-size: 18px; font-weight: 600; color: var(--text-primary); }

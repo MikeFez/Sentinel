@@ -11,12 +11,19 @@ from .llm_service import LLMService
 from .stock_service import StockService
 
 from ..config import settings as app_settings_for_edgar
-from . import activity
+from . import activity, research_store
 
 logger = logging.getLogger(__name__)
 
-# In-memory session store — ephemeral by design; nothing persisted until user clicks "Watch"
+# Live sessions; each is also saved to Research history (research_store) as it progresses, and
+# loaded back from there when it's no longer in memory (e.g. after a restart)
 _sessions: dict[str, dict] = {}
+
+_RUNNING = ("starting", "expanding", "searching", "validating")
+
+
+def _persist(session: dict) -> None:
+    research_store.save("discovery", session["theme"], session, item_id=session["session_id"])
 
 _EDGAR_HEADERS = {
     "User-Agent": app_settings_for_edgar.sec_user_agent,
@@ -34,7 +41,21 @@ async def _edgar_get(client: httpx.AsyncClient, name: str, url: str, **kwargs) -
 
 
 def get_session(session_id: str) -> Optional[dict]:
-    return _sessions.get(session_id)
+    session = _sessions.get(session_id)
+    if session is None:
+        item = research_store.get(session_id)
+        if item is None or item.kind != "discovery":
+            return None
+        session = item.data
+        # Work in progress when the server stopped won't finish now
+        if session.get("status") in _RUNNING:
+            session["status"], session["error"] = "failed", "Interrupted by a server restart"
+        for c in session.get("companies", []):
+            if c.get("status") == "analyzing":
+                c["status"] = "pending"
+        _sessions[session_id] = session
+    _persist(session)
+    return session
 
 
 def create_session(theme: str) -> dict:
@@ -52,6 +73,7 @@ def create_session(theme: str) -> dict:
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     _sessions[session_id] = session
+    _persist(session)
     return session
 
 
@@ -109,6 +131,9 @@ async def run_discover(
         logger.error(f"[{session_id}] Discovery failed: {exc}", exc_info=True)
         session["status"] = "failed"
         session["error"] = str(exc)
+    finally:
+        if session is not None:
+            _persist(session)
 
 
 async def analyze_one(
@@ -138,6 +163,8 @@ async def analyze_one(
     except Exception as exc:
         logger.error(f"[{session_id}] On-demand analysis failed for {ticker}: {exc}")
         company["status"] = "failed"
+    finally:
+        _persist(session)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -163,7 +190,7 @@ Rules:
 - rationale: one concise sentence describing the theme.
 """
 
-    response = await llm.generate(prompt, timeout=60, purpose="theme keywords")
+    response = await llm.generate(prompt, timeout=180, purpose="theme keywords")
     if not response:
         return [theme], [], ""
 

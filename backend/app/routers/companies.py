@@ -1,14 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload, load_only
-from typing import List
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional
 from ..database import get_db
-from ..models import Company, Sync, CompanyTag
+from ..models import Company, Sync, CompanyTag, DailyPrice, NewsArticle
 from ..models.sync import SyncStatus
 from ..schemas.company import CompanyCreate, CompanyUpdate, CompanyResponse, CompanyListResponse
 from ..schemas.tag import AssignTagsRequest
+from ..services import sync_progress
 from ..services.sync_runner import Thresholds
 
 router = APIRouter(prefix="/api/companies", tags=["companies"])
+
+
+def _as_utc(value) -> Optional[datetime]:
+    """Aggregates over UTCDateTime columns may come back naive (or as text on SQLite)."""
+    if value is None:
+        return None
+    if not isinstance(value, datetime):
+        value = datetime.fromisoformat(str(value))
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 @router.get("", response_model=List[CompanyListResponse])
@@ -32,6 +44,20 @@ def list_companies(db: Session = Depends(get_db)):
             if s.ai_summary and len(analyses.setdefault(s.company_id, [])) < 2:
                 analyses[s.company_id].append(s)
 
+    # When each company last got an article we hadn't seen (for "unread news" markers)
+    news_at = dict(db.query(NewsArticle.company_id, func.max(NewsArticle.first_seen_at)).group_by(NewsArticle.company_id))
+    # Each company's newest headline (shown for private companies, which have no price to show)
+    headlines: dict = {}
+    recent = datetime.now(timezone.utc) - timedelta(days=90)
+    for a in (
+        db.query(NewsArticle)
+        .options(load_only(NewsArticle.company_id, NewsArticle.title, NewsArticle.url, NewsArticle.published_at,
+                           NewsArticle.first_seen_at))
+        .filter(NewsArticle.first_seen_at >= recent)
+        .order_by(NewsArticle.published_at.desc().nulls_last(), NewsArticle.first_seen_at.desc())
+    ):
+        headlines.setdefault(a.company_id, {"title": a.title, "url": a.url, "published_at": a.published_at})
+
     result = []
     for company in companies:
         latest = newest_completed.get(company.id)
@@ -48,10 +74,14 @@ def list_companies(db: Session = Depends(get_db)):
                 "ai_sentiment": analysis.ai_sentiment,
                 "ai_summary": analysis.ai_summary,
                 "ai_changes": analysis.ai_changes,
+                "stock_price": analysis.stock_price,
                 "previous_sentiment": found[1].ai_sentiment if len(found) > 1 else None,
             },
             "is_stale": thresholds.is_stale(company, latest.synced_at if latest else None),
             "is_syncing": last is not None and last.status == SyncStatus.syncing,
+            "latest_news_at": _as_utc(news_at.get(company.id)),
+            "latest_headline": headlines.get(company.id),
+            "sync_progress": sync_progress.get(company.id) if last is not None and last.status == SyncStatus.syncing else None,
             # Set when the most recent sync failed (the data shown is then from an older sync)
             "sync_error": (last.error or "Sync failed") if last is not None and last.status == SyncStatus.failed else None,
             "has_alert": company.alert_above is not None or company.alert_below is not None,
@@ -153,6 +183,15 @@ def remove_tag(company_id: str, tag_id: str, db: Session = Depends(get_db)):
 # Peer details are fetched on demand (two Finnhub calls each) and cached for a day
 _peer_cache: dict = {}
 _PEER_CACHE_SECONDS = 24 * 3600
+
+
+@router.get("/{company_id}/prices")
+def get_price_history(company_id: str, db: Session = Depends(get_db)):
+    """One price per New York trading day (the close, for finished days), oldest first."""
+    if not db.query(Company.id).filter(Company.id == company_id).first():
+        raise HTTPException(status_code=404, detail="Company not found")
+    rows = db.query(DailyPrice).filter(DailyPrice.company_id == company_id).order_by(DailyPrice.day)
+    return [{"day": r.day, "price": r.price} for r in rows]
 
 
 @router.get("/{company_id}/peers")

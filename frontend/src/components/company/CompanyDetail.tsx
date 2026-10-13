@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { RefreshCw, Pencil, MoreHorizontal, Trash2, Bell, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
-import { deleteCompany, triggerSync, getCompanySyncs, getNewsFeed, getFilings, getScorecard } from '../../api/client';
+import { deleteCompany, triggerSync, getCompanySyncs, getNewsFeed, getFilings, getScorecard, type ScoreSummary } from '../../api/client';
 import { useAppData } from '../../state/useAppData';
 import { triggeredAlert, livePrice } from '../../lib/prices';
 import type { Sync } from '../../types';
@@ -14,30 +14,37 @@ import PeersPanel from './PeersPanel';
 import CompanyFilings from './CompanyFilings';
 import ThemesPanel from './ThemesPanel';
 import AnalystRatings from './AnalystRatings';
-import EarningsCalendar from './EarningsCalendar';
 import InsiderTransactions from './InsiderTransactions';
 import SentimentBadge from '../shared/SentimentBadge';
 import TagChip from '../shared/TagChip';
 import SentimentSparkline from './SentimentSparkline';
-import PriceChart from './PriceChart';
+import CallChart from './CallChart';
 import AddCompanyModal from './AddCompanyModal';
+import SyncSteps from '../shared/SyncSteps';
+import { useTitle } from '../../lib/useTitle';
+import { hasUnreadNews } from '../../lib/newsSeen';
 import './CompanyDetail.css';
 
-type Tab = 'overview' | 'news' | 'filings' | 'insiders' | 'history';
+const TABS = ['overview', 'news', 'filings', 'insiders', 'history'] as const;
+type Tab = typeof TABS[number];
 const STATUS_LABEL: Record<string, string> = { public: 'Public', private: 'Private', pre_ipo: 'Pre-IPO', acquired: 'Acquired' };
 
 function CompanyDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { companies, loaded, refresh, toast, stalenessHours } = useAppData();
+  const { companies, loaded, refresh, toast, confirm, stalenessHours, driftPercent, newsSeen, markNewsSeen } = useAppData();
   const company = companies.find((c) => c.id === id);
   const [syncs, setSyncs] = useState<Sync[]>([]);
-  const [tab, setTab] = useState<Tab>('overview');
+  // The tab lives in the URL, so reloads, Back and shared links keep it
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.find((t) => t === params.get('tab')) ?? 'overview';
+  const setTab = (t: Tab) => setParams(t === 'overview' ? {} : { tab: t }, { replace: true });
   const [showEdit, setShowEdit] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showFailed, setShowFailed] = useState(false);
   const [newsCount, setNewsCount] = useState(0);
   const [filingCount, setFilingCount] = useState(0);
-  const [trackRecord, setTrackRecord] = useState<string | null>(null);
+  const [trackRecord, setTrackRecord] = useState<ScoreSummary | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const loadSyncs = useCallback(async () => {
@@ -50,21 +57,27 @@ function CompanyDetail() {
   }, [id]);
 
   useEffect(() => {
-    setTab('overview');
     setSyncs([]);
     loadSyncs();
   }, [id, loadSyncs]);
 
+  const latestNewsAt = company?.latest_news_at;
   useEffect(() => {
     if (!id) return;
     getNewsFeed(500, id).then((a) => setNewsCount(a.length)).catch(() => setNewsCount(0));
     getFilings(id).then((f) => setFilingCount(f.length)).catch(() => setFilingCount(0));
     getScorecard(30, id)
-      .then((s) => setTrackRecord(s.overall.graded
-        ? `Track record: right on ${s.overall.hits} of ${s.overall.graded} bullish/bearish calls, judged 30 days later.`
-        : null))
+      .then((s) => setTrackRecord(s.overall.graded ? s.overall : null))
       .catch(() => setTrackRecord(null));
-  }, [id, syncs.length]);
+  }, [id, syncs.length, latestNewsAt]);
+
+  // Opening the News tab marks this company's news as read (also when new articles arrive while it's open)
+  useEffect(() => {
+    if (id && tab === 'news') markNewsSeen(id);
+  }, [id, tab, latestNewsAt, markNewsSeen]);
+
+  const live = company ? livePrice(company) : null;
+  useTitle(company ? [company.ticker ?? company.name, live && money(live.price), live && pct(live.change)].filter(Boolean).join(' ') : null);
 
   // Reload the detail once a running sync finishes (the shared company list is polled while syncing)
   const syncing = company?.is_syncing ?? false;
@@ -89,7 +102,7 @@ function CompanyDetail() {
   // The newest analysis may be older than the newest data if the last analysis run failed
   const analysisSync = completed.find((s) => s.ai_summary);
   const alert = triggeredAlert(company);
-  const live = livePrice(company);
+  const newsUnread = tab !== 'news' && hasUnreadNews(company.latest_news_at, newsSeen.lastVisit, newsSeen.byCompany[company.id]);
   const stale = !latest || hoursSince(latest.synced_at) > stalenessHours;
   const insiderCount = latest?.insider_transactions?.length ?? 0;
 
@@ -104,7 +117,13 @@ function CompanyDetail() {
 
   const remove = async () => {
     setMenuOpen(false);
-    if (!confirm(`Delete ${company.name} and all of its sync history? This can't be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete ${company.name}?`,
+      message: "This deletes the company with all of its syncs, news and analyses. It can't be undone.",
+      confirmLabel: 'Delete company',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteCompany(company.id);
       await refresh();
@@ -147,7 +166,7 @@ function CompanyDetail() {
           <div className="cd-actions">
             <button className="btn btn-primary" onClick={sync} disabled={syncing}>
               {syncing ? <Loader2 size={15} className="spinning" /> : <RefreshCw size={15} />}
-              {syncing ? 'Syncing…' : 'Sync now'}
+              {!syncing ? 'Sync now' : company.sync_progress ? 'Syncing…' : 'Queued…'}
             </button>
             <button className="btn btn-secondary" onClick={() => setShowEdit(true)}><Pencil size={15} /> Edit</button>
             <div className="cd-menu" ref={menuRef}>
@@ -184,7 +203,7 @@ function CompanyDetail() {
 
         {syncing && (
           <div className="notice notice-info"><Loader2 size={16} className="spinning" />
-            <span>Syncing: fetching {company.status === 'public' ? 'prices, analyst ratings and news' : 'news'}, then running the AI analysis. This usually takes under a minute.</span>
+            <SyncSteps company={company} />
           </div>
         )}
         {!syncing && company.sync_error && (
@@ -204,6 +223,7 @@ function CompanyDetail() {
             {tabs.filter((t) => t.show).map((t) => (
               <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
                 {t.label}{t.count != null && <span className="tab-count">{t.count}</span>}
+                {t.id === 'news' && newsUnread && <span className="cd-unread" aria-label="New news" />}
               </button>
             ))}
           </div>
@@ -225,13 +245,15 @@ function CompanyDetail() {
                 </span>
               </div>
             )}
-            {analysisSync && <AiAnalysisPanel sync={analysisSync} trackRecord={company.status === 'public' ? trackRecord : null} />}
+            {analysisSync && (
+              <AiAnalysisPanel sync={analysisSync} trackRecord={company.status === 'public' ? trackRecord : null}
+                livePrice={live?.price} driftPercent={driftPercent} />
+            )}
             {company.description && <div className="card cd-description">{company.description}</div>}
-            {company.status === 'public' && latest && <StockDataPanel sync={latest} ticker={company.ticker} />}
+            {company.status === 'public' && latest && <StockDataPanel sync={latest} ticker={company.ticker} live={live} />}
             <div className="cd-two">
               {latest?.analyst_ratings && <AnalystRatings ratings={latest.analyst_ratings} />}
-              {latest?.earnings_dates && latest.earnings_dates.length > 0 && <EarningsCalendar earnings={latest.earnings_dates} />}
-              {latest?.earnings_history && latest.earnings_history.length > 0 && <EarningsHistory quarters={latest.earnings_history} />}
+              {latest && <EarningsHistory quarters={latest.earnings_history ?? []} dates={latest.earnings_dates ?? []} />}
             </div>
             <ThemesPanel companyId={company.id} refreshKey={latest?.id ?? ''} />
             {company.status === 'public' && latest?.peers && latest.peers.length > 0 && <PeersPanel companyId={company.id} refreshKey={latest.id} />}
@@ -244,11 +266,11 @@ function CompanyDetail() {
 
         {tab === 'history' && (
           <div className="card">
-            {company.status === 'public' && <PriceChart syncs={completed} />}
+            {company.status === 'public' && <CallChart companyId={company.id} syncs={syncs} live={live} />}
             <table className="cd-history">
               <thead><tr><th>When</th><th className="hide-sm">Why</th><th className="r">Price</th><th className="r hide-sm">Change</th><th>Sentiment</th><th className="hide-sm">Result</th></tr></thead>
               <tbody>
-                {syncs.map((s) => (
+                {syncs.filter((s) => showFailed || s.status !== 'failed').map((s) => (
                   <tr key={s.id}>
                     <td title={parseTime(s.synced_at).toLocaleString()}>{parseTime(s.synced_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
                     <td className="hide-sm muted">{s.reason ?? '—'}</td>
@@ -262,6 +284,11 @@ function CompanyDetail() {
                 ))}
               </tbody>
             </table>
+            {syncs.some((s) => s.status === 'failed') && (
+              <button className="btn btn-ghost btn-sm cd-failed-toggle" onClick={() => setShowFailed((v) => !v)}>
+                {showFailed ? 'Hide failed syncs' : `Show ${syncs.filter((s) => s.status === 'failed').length} failed syncs`}
+              </button>
+            )}
           </div>
         )}
       </div>

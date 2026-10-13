@@ -7,6 +7,7 @@ import {
 } from '../../api/client';
 import { ago, parseTime } from '../../lib/format';
 import './ActivityPage.css';
+import { useTitle } from '../../lib/useTitle';
 
 const KINDS: { id: ActivityKind; label: string }[] = [
   { id: 'llm', label: 'LLM' },
@@ -69,6 +70,7 @@ function Chart({ s }: { s: ActivitySummary }) {
 }
 
 function ActivityPage() {
+  useTitle('Activity');
   const [hours, setHours] = useState(24);
   const [summary, setSummary] = useState<ActivitySummary | null>(null);
   const [events, setEvents] = useState<ActivityEvent[]>([]);

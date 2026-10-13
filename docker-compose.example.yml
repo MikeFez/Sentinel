@@ -12,5 +12,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-qwen3.8:27b}
       LLM_API_KEY: ${LLM_API_KEY:-}
       SEC_USER_AGENT: ${SEC_USER_AGENT:-}   # "YourName your@email", for SEC filings
+      NOTIFY_URLS: ${NOTIFY_URLS:-}         # Apprise URLs for notifications, e.g. ntfy://ntfy.sh/your-topic
+      SENTINEL_URL: ${SENTINEL_URL:-}       # e.g. http://athena.lan:8000, for links in notifications
       NEWS_ARTICLE_COUNT: ${NEWS_ARTICLE_COUNT:-10}
     restart: unless-stopped

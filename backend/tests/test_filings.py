@@ -69,3 +69,14 @@ def test_only_recent_filings_are_ever_fetched(db, monkeypatch):
     db.add(Filing(company_id=c.id, accession="known", form="8-K", filed_on=recent.isoformat(), url="u0"))
     db.commit()
     assert [x["accession"] for x in filings.fetch_new(db, c)] == ["new-1"]
+
+
+def test_routine_marker_is_stripped_and_flagged():
+    from app.services.filings import split_routine
+
+    assert split_routine("8-K", "Routine: the company filed its investor slides.") == (True, "The company filed its investor slides.")
+    assert split_routine("8-K", "**Routine** — vote results.") == (True, "Vote results.")
+    assert split_routine("8-K", "The CFO resigned; routine succession follows.") == (False, "The CFO resigned; routine succession follows.")
+    assert split_routine("10-K", "Routine: x") == (False, "Routine: x")  # only 8-Ks
+    # Results are never routine, even when the model says so
+    assert split_routine("8-K", "Routine: Q2 results press release.", "2.02,9.01") == (False, "Q2 results press release.")

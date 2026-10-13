@@ -8,9 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
-from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover, transfer, insights, activity as activity_router
+from .routers import companies, tags, syncs, settings, home, ipo, analyze, news, discover, transfer, insights, research, notifications, activity as activity_router
 from .database import SessionLocal
-from .services.sync_runner import start_sync, run_sync, stale_company_ids, recover_interrupted_syncs, Thresholds
+from .services import notifier
+from .services.sync_runner import queue_sync, sync_queue, stale_company_ids, recover_interrupted_syncs, Thresholds
 from .services.quote_service import refresh_quotes
 from .services.maintenance import prune_history
 from .services.events import due_event_syncs, due_signal_syncs
@@ -34,14 +35,17 @@ async def _auto_refresh_loop() -> None:
     last_prune = 0.0
     while True:
         db = SessionLocal()
-        to_run = []
+        wanted: list = []
         try:
             if time.monotonic() - last_prune > _PRUNE_INTERVAL or not last_prune:
                 last_prune = time.monotonic()
                 with activity.track("job", "prune") as t:
                     n = await asyncio.to_thread(prune_history, db, get_float(db, "history_detail_days"))
                     t.note(f"pruned {n}")
-            wanted = due_event_syncs(db, get_float(db, "move_sync_percent"), get_setting(db, "earnings_sync") == "true")
+            wanted = due_event_syncs(
+                db, get_float(db, "move_sync_percent"), get_setting(db, "earnings_sync") == "true",
+                drift_threshold=get_float(db, "analysis_drift_percent"),
+            )
             if get_setting(db, "signal_sync") == "true" and app_settings.finnhub_api_key:
                 with activity.track("job", "analyst & insider check") as t:
                     signals = await asyncio.to_thread(_signal_syncs_in_thread)
@@ -49,21 +53,23 @@ async def _auto_refresh_loop() -> None:
                 wanted += signals
             if get_setting(db, "auto_refresh_enabled") == "true":
                 wanted += [(cid, "Scheduled refresh") for cid in stale_company_ids(db, Thresholds.for_auto_refresh(db))]
-            for company_id, reason in wanted:
-                sync, created = start_sync(db, company_id, reason)
-                if created:
-                    to_run.append(sync.id)
         except Exception:
             logger.exception("Auto-refresh check failed")
         finally:
             db.close()
 
-        # New SEC filings first, so their summaries reach the analyses below
+        # New SEC filings first, so their summaries reach the analyses queued below
         await _check_filings()
-        if to_run:
-            logger.info(f"Auto-refresh: syncing {len(to_run)} companies")
-        for sync_id in to_run:
-            await run_sync(sync_id)
+        await asyncio.to_thread(notifier.maybe_send_digest)
+        db = SessionLocal()
+        try:
+            created = sum(queue_sync(db, company_id, reason)[1] for company_id, reason in wanted)
+            if created:
+                logger.info(f"Auto-refresh: queued {created} sync(s)")
+        except Exception:
+            logger.exception("Auto-refresh: queueing syncs failed")
+        finally:
+            db.close()
         await asyncio.sleep(_AUTO_REFRESH_INTERVAL)
 
 
@@ -124,7 +130,11 @@ def _refresh_quotes_in_thread() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     recover_interrupted_syncs()
-    tasks = [asyncio.create_task(_auto_refresh_loop()), asyncio.create_task(_quote_loop())]
+    tasks = [
+        asyncio.create_task(sync_queue.worker()),
+        asyncio.create_task(_auto_refresh_loop()),
+        asyncio.create_task(_quote_loop()),
+    ]
     yield
     for task in tasks:
         task.cancel()
@@ -188,6 +198,8 @@ app.include_router(discover.router)
 app.include_router(transfer.router)
 app.include_router(insights.router)
 app.include_router(activity_router.router)
+app.include_router(research.router)
+app.include_router(notifications.router)
 
 
 @app.get("/health")

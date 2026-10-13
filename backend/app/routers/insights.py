@@ -24,7 +24,7 @@ def get_filings(company_id: str, db: Session = Depends(get_db)):
     filings = db.query(Filing).filter(Filing.company_id == company_id).order_by(Filing.filed_on.desc()).limit(50)
     return [
         {"id": f.id, "form": f.form, "filed_on": f.filed_on, "items": f.items, "url": f.url,
-         "summary": f.summary, "new_risks": f.new_risks}
+         "summary": f.summary, "new_risks": f.new_risks, "routine": bool(f.routine)}
         for f in filings
     ]
 

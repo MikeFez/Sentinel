@@ -2,120 +2,53 @@ import { TrendingUp } from 'lucide-react';
 import type { AnalystRatings as AnalystRatingsType } from '../../types';
 import './AnalystRatings.css';
 
-interface AnalystRatingsProps {
-  ratings: AnalystRatingsType;
+const LEVELS = [
+  { key: 'strongBuy', label: 'Strong buy', score: 5 },
+  { key: 'buy', label: 'Buy', score: 4 },
+  { key: 'hold', label: 'Hold', score: 3 },
+  { key: 'sell', label: 'Sell', score: 2 },
+  { key: 'strongSell', label: 'Strong sell', score: 1 },
+] as const;
+
+/** Average rating on a 1 (strong sell) to 5 (strong buy) scale, named like the usual consensus labels. */
+function consensus(mean: number): { text: string; tone: string } {
+  if (mean >= 4.5) return { text: 'Strong buy', tone: 'up' };
+  if (mean >= 3.5) return { text: 'Buy', tone: 'up' };
+  if (mean >= 2.5) return { text: 'Hold', tone: 'ar-tone-hold' };
+  if (mean >= 1.5) return { text: 'Sell', tone: 'down' };
+  return { text: 'Strong sell', tone: 'down' };
 }
 
-function AnalystRatings({ ratings }: AnalystRatingsProps) {
-  const total =
-    (ratings.strongBuy || 0) +
-    (ratings.buy || 0) +
-    (ratings.hold || 0) +
-    (ratings.sell || 0) +
-    (ratings.strongSell || 0);
+function AnalystRatings({ ratings }: { ratings: AnalystRatingsType }) {
+  const rows = LEVELS.map((l) => ({ ...l, count: ratings[l.key] ?? 0 }));
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  if (total === 0) return null;
 
-  if (total === 0) {
-    return null;
-  }
-
-  const calculatePercentage = (value: number | undefined) => {
-    if (!value || total === 0) return 0;
-    return (value / total) * 100;
-  };
-
-  const getConsensus = () => {
-    const bullish = (ratings.strongBuy || 0) + (ratings.buy || 0);
-    const bearish = (ratings.strongSell || 0) + (ratings.sell || 0);
-
-    if (bullish > bearish * 2) return { text: 'Strong Buy', color: 'var(--success-dark)' };
-    if (bullish > bearish) return { text: 'Buy', color: 'var(--success)' };
-    if (bearish > bullish * 2) return { text: 'Sell', color: 'var(--danger-dark)' };
-    if (bearish > bullish) return { text: 'Hold/Sell', color: 'var(--warning)' };
-    return { text: 'Hold', color: 'var(--text-muted)' };
-  };
-
-  const consensus = getConsensus();
+  const mean = rows.reduce((s, r) => s + r.score * r.count, 0) / total;
+  const c = consensus(mean);
+  const most = Math.max(...rows.map((r) => r.count));
 
   return (
-    <div className="analyst-ratings panel">
-      <div className="panel-header">
-        <TrendingUp size={20} />
-        <h2>Analyst Ratings</h2>
+    <div className="card analyst-ratings">
+      <h2>
+        <TrendingUp size={15} /> Analyst ratings
+        <span className="muted ar-total">{total} analysts</span>
+      </h2>
+      <div className="ar-consensus">
+        <span className={`ar-consensus-value ${c.tone}`}>{c.text}</span>
+        <span className="muted num" title="Average rating: 5 = strong buy, 1 = strong sell">{mean.toFixed(1)} / 5</span>
       </div>
-
-      <div className="analyst-consensus">
-        <div className="consensus-label">Consensus</div>
-        <div className="consensus-value" style={{ color: consensus.color }}>
-          {consensus.text}
-        </div>
-        <div className="consensus-count">{total} analysts</div>
-      </div>
-
-      <div className="ratings-breakdown">
-        {ratings.strongBuy !== undefined && ratings.strongBuy > 0 && (
-          <div className="rating-row">
-            <span className="rating-label">Strong Buy</span>
-            <div className="rating-bar-container">
-              <div
-                className="rating-bar strong-buy"
-                style={{ width: `${calculatePercentage(ratings.strongBuy)}%` }}
-              />
+      <div className="ar-rows">
+        {rows.map((r) => (
+          <div key={r.key} className="ar-row">
+            <span className="ar-label">{r.label}</span>
+            <div className="ar-track">
+              {/* Bars are scaled to the largest group so small differences stay visible */}
+              <div className={`ar-bar ar-${r.key}`} style={{ width: `${(r.count / most) * 100}%` }} />
             </div>
-            <span className="rating-count">{ratings.strongBuy}</span>
+            <span className="ar-count num">{r.count}</span>
           </div>
-        )}
-
-        {ratings.buy !== undefined && ratings.buy > 0 && (
-          <div className="rating-row">
-            <span className="rating-label">Buy</span>
-            <div className="rating-bar-container">
-              <div
-                className="rating-bar buy"
-                style={{ width: `${calculatePercentage(ratings.buy)}%` }}
-              />
-            </div>
-            <span className="rating-count">{ratings.buy}</span>
-          </div>
-        )}
-
-        {ratings.hold !== undefined && ratings.hold > 0 && (
-          <div className="rating-row">
-            <span className="rating-label">Hold</span>
-            <div className="rating-bar-container">
-              <div
-                className="rating-bar hold"
-                style={{ width: `${calculatePercentage(ratings.hold)}%` }}
-              />
-            </div>
-            <span className="rating-count">{ratings.hold}</span>
-          </div>
-        )}
-
-        {ratings.sell !== undefined && ratings.sell > 0 && (
-          <div className="rating-row">
-            <span className="rating-label">Sell</span>
-            <div className="rating-bar-container">
-              <div
-                className="rating-bar sell"
-                style={{ width: `${calculatePercentage(ratings.sell)}%` }}
-              />
-            </div>
-            <span className="rating-count">{ratings.sell}</span>
-          </div>
-        )}
-
-        {ratings.strongSell !== undefined && ratings.strongSell > 0 && (
-          <div className="rating-row">
-            <span className="rating-label">Strong Sell</span>
-            <div className="rating-bar-container">
-              <div
-                className="rating-bar strong-sell"
-                style={{ width: `${calculatePercentage(ratings.strongSell)}%` }}
-              />
-            </div>
-            <span className="rating-count">{ratings.strongSell}</span>
-          </div>
-        )}
+        ))}
       </div>
     </div>
   );

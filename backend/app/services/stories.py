@@ -115,7 +115,7 @@ async def group_new_articles(db: Session, llm: LLMService, company_id: str, comp
         )
         for t in ts or []
     })
-    reply = await llm.generate(build_prompt(company_name, articles, stories, themes), timeout=120, json_mode=True,
+    reply = await llm.generate(build_prompt(company_name, articles, stories, themes), json_mode=True,
                                purpose="story grouping")
     if reply is None:
         logger.warning(f"Story grouping skipped for {company_name}: {llm.last_error}")

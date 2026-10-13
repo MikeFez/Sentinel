@@ -51,8 +51,8 @@
   gap: 0.5rem;
   margin-top: 1rem;
   padding: 0.5rem 1rem;
-  background: var(--background);
-  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   color: var(--text-muted);
   font-size: 0.875rem;
@@ -61,7 +61,7 @@
 }
 
 .show-prompt-button:hover {
-  background: var(--border-light);
+  background: var(--border-color);
   color: var(--text-primary);
 }
 
@@ -75,8 +75,8 @@
 .ai-prompt {
   margin-top: 1rem;
   padding: 1rem;
-  background: var(--background);
-  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   overflow-x: auto;
   max-height: 500px;
@@ -115,3 +115,5 @@
 .ai-debate { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 4px 0 12px; }
 .ai-debate h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 6px; }
 .ai-debate p { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+.ai-analysis-panel .ai-drift { margin: 0 0 14px; }
+.ai-analysis-panel .ai-track.ai-track-poor { color: var(--warning); }

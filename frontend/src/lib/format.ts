@@ -13,6 +13,9 @@ export const pct = (n: number | null | undefined) =>
 
 export const num = (n: number | null | undefined) => (n == null ? '—' : n.toLocaleString('en-US'));
 
+/** EPS with enough precision that close values don't look equal (e.g. -0.080 vs -0.077). */
+export const eps = (v: number) => v.toFixed(Math.abs(v) < 1 ? 3 : 2);
+
 export const direction = (n: number | null | undefined) => (n == null ? '' : n >= 0 ? 'up' : 'down');
 
 /** Parse a server timestamp. Older API responses had no offset; those are UTC. */

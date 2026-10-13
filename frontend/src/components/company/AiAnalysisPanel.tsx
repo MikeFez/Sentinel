@@ -1,16 +1,45 @@
 import { useState } from 'react';
-import { Brain, ChevronDown, ChevronUp, GitCompareArrows } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, Brain, ChevronDown, ChevronUp, GitCompareArrows } from 'lucide-react';
+import type { ScoreSummary } from '../../api/client';
 import type { Sync } from '../../types';
-import { ago } from '../../lib/format';
+import { ago, money, pct } from '../../lib/format';
+import { driftSince } from '../../lib/drift';
 import SentimentBadge from '../shared/SentimentBadge';
 import './AiAnalysisPanel.css';
 
-function AiAnalysisPanel({ sync, trackRecord }: { sync: Sync; trackRecord?: string | null }) {
+interface Props {
+  sync: Sync;
+  /** How this company's past calls played out (30 days on), from the scorecard. */
+  trackRecord?: ScoreSummary | null;
+  /** The latest price, to show how far it has moved since the analysis was written. */
+  livePrice?: number | null;
+  /** Moves at least this big (%) are flagged: the analysis may no longer hold. */
+  driftPercent?: number;
+}
+
+/** "4 of 13 calls on this stock were right 30 days later; after bullish calls it moved −15.7% on average." */
+function TrackRecord({ s }: { s: ScoreSummary }) {
+  const rate = s.hits / s.graded;
+  const poor = s.graded >= 5 && rate <= 0.4;
+  const bullish = s.avg_return.bullish, bearish = s.avg_return.bearish;
+  return (
+    <p className={`ai-track ${poor ? 'ai-track-poor' : 'muted'}`}>
+      Track record: {s.hits} of {s.graded} {s.graded === 1 ? 'call' : 'calls'} on this stock were right 30 days later
+      {bullish != null && <>; after bullish calls it moved {pct(bullish)} on average</>}
+      {bearish != null && <>, after bearish calls {pct(bearish)}</>}.{' '}
+      <Link to="/scorecard">Scorecard</Link>
+    </p>
+  );
+}
+
+function AiAnalysisPanel({ sync, trackRecord, livePrice, driftPercent = 15 }: Props) {
   const [showPrompt, setShowPrompt] = useState(false);
   const [showDebate, setShowDebate] = useState(false);
   if (!sync.ai_summary) return null;
   const keyPoints = sync.ai_key_points ?? [];
   const risks = sync.ai_risks ?? [];
+  const drift = driftSince(sync.stock_price, livePrice);
 
   return (
     <div className="ai-analysis-panel">
@@ -22,7 +51,19 @@ function AiAnalysisPanel({ sync, trackRecord }: { sync: Sync; trackRecord?: stri
         </div>
         {sync.ai_sentiment && <SentimentBadge sentiment={sync.ai_sentiment} />}
       </div>
-      {trackRecord && <p className="ai-track muted">{trackRecord}</p>}
+      {trackRecord && <TrackRecord s={trackRecord} />}
+
+      {drift != null && Math.abs(drift) >= driftPercent ? (
+        <div className="notice notice-warning ai-drift">
+          <AlertTriangle size={16} />
+          <span>
+            Written when the price was {money(sync.stock_price)}. It's {money(livePrice)} now ({pct(drift)}), so this
+            analysis may no longer hold. A new one runs automatically after moves this big.
+          </span>
+        </div>
+      ) : drift != null && Math.abs(drift) >= 1 ? (
+        <p className="ai-track muted">Written at {money(sync.stock_price)} ({pct(drift)} since).</p>
+      ) : null}
 
       {sync.ai_changes && (
         <div className="ai-changes">

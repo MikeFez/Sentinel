@@ -70,7 +70,7 @@ def test_finnhub_requests_are_recorded_by_endpoint(db, monkeypatch):
         def __init__(self, *a, **k): pass
         def __enter__(self): return self
         def __exit__(self, *a): pass
-        def get(self, url, params=None, timeout=None):
+        def get(self, url, params=None, headers=None, timeout=None):
             return httpx.Response(200, json={"c": 1}, request=httpx.Request("GET", url))
 
     monkeypatch.setattr(httpx, "Client", FakeClient)

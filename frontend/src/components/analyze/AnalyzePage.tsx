@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, ArrowRight } from 'lucide-react';
-import { runAnalysis, createCompany, errorDetail } from '../../api/client';
+import { runAnalysis, createCompany, errorDetail, getResearch, type AnalyzeRequest } from '../../api/client';
+import ResearchHistory from '../research/ResearchHistory';
+import { ago } from '../../lib/format';
 import { useAppData } from '../../state/useAppData';
 import type { AnalyzeResult } from '../../api/client';
 import type { SentimentType } from '../../types';
@@ -18,6 +20,10 @@ function AnalyzePage() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [error, setError] = useState('');
   const [analyzed, setAnalyzed] = useState<{ ticker: string; name: string } | null>(null);
+  // The saved copy on screen, and when it was made if it was reopened from history
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [reopenedAt, setReopenedAt] = useState<string | null>(null);
+  const [historyKey, setHistoryKey] = useState(0);
   const { companies, refresh, toast } = useAppData();
   const navigate = useNavigate();
   const tracked = analyzed?.ticker ? companies.find((c) => c.ticker?.toUpperCase() === analyzed.ticker) : undefined;
@@ -51,10 +57,31 @@ function AnalyzePage() {
       });
       setResult(data);
       setAnalyzed({ ticker: ticker.trim().toUpperCase(), name: companyName.trim() });
+      setSavedId(data.id ?? null);
+      setReopenedAt(null);
+      setHistoryKey((k) => k + 1);
     } catch (err) {
       setError(errorDetail(err, 'Analysis failed. Check the LLM endpoint is reachable.'));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const reopen = async (id: string) => {
+    try {
+      const saved = await getResearch<{ request: AnalyzeRequest; result: AnalyzeResult }>(id);
+      const { request, result: r } = saved.data;
+      setTicker(request.ticker ?? '');
+      setCompanyName(request.company_name ?? '');
+      setNotes(request.notes ?? '');
+      setAnalyzed({ ticker: (request.ticker ?? '').toUpperCase(), name: request.company_name ?? '' });
+      setResult(r);
+      setSavedId(id);
+      setReopenedAt(saved.created_at);
+      setError('');
+      setShowPrompt(false);
+    } catch {
+      toast('Could not open that analysis', 'error');
     }
   };
 
@@ -127,6 +154,7 @@ function AnalyzePage() {
           <div className="analyze-result">
             <div className="analyze-result-header">
               <h2>Analysis Result</h2>
+              {reopenedAt && <span className="muted analyze-saved-at">from {ago(reopenedAt)} · prices as of then</span>}
               {result.sentiment && (
                 <SentimentBadge sentiment={result.sentiment as SentimentType} />
               )}
@@ -213,6 +241,8 @@ function AnalyzePage() {
           </div>
         )}
       </div>
+
+      <ResearchHistory kind="analysis" refreshKey={historyKey} currentId={savedId} onOpen={reopen} />
     </div>
   );
 }

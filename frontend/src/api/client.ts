@@ -214,7 +214,61 @@ export interface AnalyzeResult {
   risks: string[];
   prompt: string | null;
   stock_data: Record<string, unknown> | null;
+  /** The saved copy in Research history. */
+  id?: string | null;
 }
+
+/** A saved Research result, as listed in history. */
+export interface ResearchListItem {
+  id: string;
+  kind: 'analysis' | 'discovery';
+  title: string;
+  created_at: string;
+  updated_at: string;
+  // analysis
+  sentiment?: string | null;
+  summary?: string;
+  // discovery
+  status?: string;
+  companies?: number;
+  analyzed?: number;
+}
+
+export const listResearch = async (kind: 'analysis' | 'discovery'): Promise<ResearchListItem[]> => {
+  const response = await api.get('/research', { params: { kind } });
+  return response.data;
+};
+
+export const getResearch = async <T,>(id: string): Promise<{ id: string; kind: string; title: string; created_at: string; data: T }> => {
+  const response = await api.get(`/research/${id}`);
+  return response.data;
+};
+
+export const deleteResearch = async (id: string): Promise<void> => {
+  await api.delete(`/research/${id}`);
+};
+
+export interface SentNotification {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  status: 'sent' | 'failed';
+  error: string | null;
+  at: string;
+  company_id: string | null;
+}
+
+/** Destination kinds (e.g. "ntfy"; never the URLs) and the latest notifications. */
+export const getNotifications = async (): Promise<{ services: string[]; recent: SentNotification[] }> => {
+  const response = await api.get('/notifications');
+  return response.data;
+};
+
+export const sendTestNotification = async (): Promise<{ ok: boolean; error: string | null }> => {
+  const response = await api.post('/notifications/test');
+  return response.data;
+};
 
 export const runAnalysis = async (request: AnalyzeRequest): Promise<AnalyzeResult> => {
   const response = await api.post('/analyze', request);
@@ -285,6 +339,17 @@ export interface Peer {
   tracked_company_id: string | null;
 }
 
+export interface DailyPrice {
+  /** YYYY-MM-DD, New York trading day. */
+  day: string;
+  price: number;
+}
+
+export const getPriceHistory = async (companyId: string): Promise<DailyPrice[]> => {
+  const response = await api.get(`/companies/${companyId}/prices`);
+  return response.data;
+};
+
 export const getPeers = async (companyId: string): Promise<Peer[]> => {
   const response = await api.get(`/companies/${companyId}/peers`);
   return response.data;
@@ -317,7 +382,11 @@ export interface ScoreSummary {
   hits: number;
   hit_rate: number | null;
   avg_return: Record<'bullish' | 'bearish' | 'neutral' | 'mixed', number | null>;
+  /** Not due yet. */
   pending: number;
+  counts: Record<'bullish' | 'bearish' | 'neutral' | 'mixed', number>;
+  /** Due, but no price was recorded near the date. */
+  no_data: number;
 }
 
 export interface ScoredCall {
@@ -330,6 +399,7 @@ export interface ScoredCall {
   later_at: string | null;
   return: number | null;
   hit: boolean | null;
+  no_data: boolean;
   model: string | null;
 }
 
@@ -355,6 +425,8 @@ export interface FilingSummary {
   url: string;
   summary: string | null;
   new_risks: string[] | null;
+  /** An 8-K with nothing new for investors; left out of analyses. */
+  routine: boolean;
 }
 
 export const getFilings = async (companyId: string): Promise<FilingSummary[]> => {

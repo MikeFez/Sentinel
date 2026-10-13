@@ -1,30 +1,38 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
 import { getNewsFeed, getStories, type NewsFeedArticle, type Story } from '../../api/client';
 import { ago, parseTime } from '../../lib/format';
+import { useAppData } from '../../state/useAppData';
+import { useTitle } from '../../lib/useTitle';
 import './NewsFeedPage.css';
-
-const LAST_VISIT_KEY = 'sentinel.news.lastVisit';
-
-function readLastVisit(): number {
-  try {
-    return Number(localStorage.getItem(LAST_VISIT_KEY)) || 0;
-  } catch {
-    return 0;
-  }
-}
 
 function NewsFeedPage() {
   const [articles, setArticles] = useState<NewsFeedArticle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [company, setCompany] = useState<string | null>(null);
-  const [view, setView] = useState<'stories' | 'articles'>('stories');
-  const [materialOnly, setMaterialOnly] = useState(false);
+  // Filters live in the URL, so reloads, Back and shared links keep them
+  const [params, setParams] = useSearchParams();
+  const query = params.get('q') ?? '';
+  const company = params.get('company');
+  const view = params.get('view') === 'articles' ? 'articles' : 'stories';
+  const materialOnly = params.get('material') === '1';
+  const setParam = (key: string, value: string | null) =>
+    setParams((p) => {
+      const next = new URLSearchParams(p);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  const setQuery = (v: string) => setParam('q', v || null);
+  const setCompany = (v: string | null) => setParam('company', v);
+  const setView = (v: 'stories' | 'articles') => setParam('view', v === 'articles' ? v : null);
+  const setMaterialOnly = (v: boolean) => setParam('material', v ? '1' : null);
   const [stories, setStories] = useState<Story[]>([]);
   const [open, setOpen] = useState<Set<string>>(new Set());
   // Articles first seen after the previous visit are marked new (per browser)
-  const [lastVisit] = useState(readLastVisit);
+  const { newsSeen, markNewsSeen } = useAppData();
+  const [lastVisit] = useState(newsSeen.lastVisit);
+  useTitle('News');
 
   useEffect(() => {
     getStories().then(setStories).catch(() => setStories([]));
@@ -32,14 +40,8 @@ function NewsFeedPage() {
       .then(setArticles)
       .catch((err) => console.error('Failed to load news:', err))
       .finally(() => setLoading(false));
-    return () => {
-      try {
-        localStorage.setItem(LAST_VISIT_KEY, String(Date.now()));
-      } catch {
-        /* private mode: everything just stays "not new" */
-      }
-    };
-  }, []);
+    return () => markNewsSeen(null);
+  }, [markNewsSeen]);
 
   const companies = useMemo(() => {
     const counts = new Map<string, { id: string; name: string; count: number }>();

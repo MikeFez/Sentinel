@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, JSON, ForeignKey
+from sqlalchemy import Boolean, Column, String, Text, JSON, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -23,6 +23,8 @@ class Filing(Base):
     new_risks = Column(JSON, nullable=True)
     risk_text = Column(Text, nullable=True)
     error = Column(Text, nullable=True)
+    # An 8-K with nothing new for investors (exhibits, vote tallies...): dimmed, and left out of analyses
+    routine = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(UTCDateTime, server_default=func.now())
 
     company = relationship("Company", back_populates="filings")

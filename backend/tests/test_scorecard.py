@@ -17,9 +17,25 @@ def test_calls_are_graded_against_the_price_near_the_horizon():
     assert calls[0].hit is True and calls[1].hit is False
 
 
-def test_no_price_near_the_horizon_means_pending():
-    [call] = grade([(day(0), 100.0), (day(45), 90.0)], [Call("c", day(0), "bullish", 100.0, None)], 30)
-    assert call.ret is None and call.hit is None  # 45 days is outside the ±8 day window
+def test_no_price_near_the_horizon_means_pending_then_no_data():
+    series = [(day(0), 100.0), (day(45), 90.0)]  # 45 days is outside the ±8 day window
+    [call] = grade(series, [Call("c", day(0), "bullish", 100.0, None)], 30, now=day(35))
+    assert call.ret is None and call.hit is None and not call.no_data  # window still open
+    [call] = grade(series, [Call("c", day(0), "bullish", 100.0, None)], 30, now=day(40))
+    assert call.no_data
+    s = summarize([call])
+    assert s["pending"] == 0 and s["no_data"] == 1
+
+
+def test_daily_prices_fill_gaps_between_syncs(client, db):
+    from app.models import DailyPrice
+    c = f.company(db, "Acme", "ACME")
+    s = f.sync(db, c, hours_ago=24 * 40, sentiment="bullish", stock_price=100.0)
+    later = s.synced_at + timedelta(days=30)
+    db.add(DailyPrice(company_id=c.id, day=later.date().isoformat(), price=90.0, at=later))
+    db.commit()
+    [call] = client.get("/api/scorecard?horizon=30").json()["recent"]
+    assert call["later_price"] == 90.0 and call["hit"] is False
 
 
 def test_neutral_calls_are_not_graded_but_their_returns_are_reported():

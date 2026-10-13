@@ -126,3 +126,31 @@
 .sb-empty:hover { color: var(--text-primary); }
 
 .sb-activity { margin-top: 6px; border-top: 1px solid var(--border-color); border-radius: 0 0 6px 6px; padding-top: 10px; }
+
+.sb-company { position: relative; }
+.sb-company .sb-unread {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+}
+.sb-company .sb-icon-wrap { display: inline-flex; }
+.sb-nav .sb-nav-dot { width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--accent-primary); }
+
+.sb-section-head .sb-groupby { display: inline-flex; gap: 2px; margin-left: auto; margin-right: 4px; }
+.sb-section-head .sb-groupby button {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+}
+.sb-section-head .sb-groupby button:hover { color: var(--text-secondary); }
+.sb-section-head .sb-groupby button.active { background: var(--bg-tertiary); color: var(--text-primary); }
+.sb-company .sb-row-tag { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; align-self: center; }

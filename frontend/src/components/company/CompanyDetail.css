@@ -33,20 +33,6 @@
 .cd-stale { color: var(--warning); }
 .cd-warn { color: var(--warning); }
 
-.notice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  border: 1px solid;
-}
-.notice span { flex: 1; }
-.notice-info { border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.08); }
-.notice-error { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
-.notice-warning { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08); }
 
 .cd-overview { display: grid; gap: 16px; }
 .cd-overview > * { margin: 0 !important; }
@@ -65,9 +51,6 @@
 .cd-history .r { text-align: right; }
 .cd-history th:first-child, .cd-history td:first-child { padding-left: 0; }
 
-.price-chart { margin: 4px 0 12px; }
-.price-chart svg { width: 100%; height: 140px; display: block; }
-.price-chart figcaption { display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; }
 
 .status-badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
 .status-public { background: rgba(59, 130, 246, 0.12); color: var(--status-public); }
@@ -105,3 +88,26 @@
 .theme-bars { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
 .theme-bars span { flex: 1; background: var(--bg-hover); border-radius: 2px; }
 .theme-bars span.on { background: var(--accent-primary); }
+.company-page .tab .cd-unread { display: inline-block; width: 6px; height: 6px; margin-left: 6px; vertical-align: middle; border-radius: 50%; background: var(--accent-primary); }
+.filing.filing-routine { background: transparent; }
+.filing.filing-routine p, .filing.filing-routine header > :not(.filing-routine-tag) { opacity: 0.6; }
+.filing .filing-routine-tag {
+  padding: 1px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.company-page .eh-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  font-size: 13px;
+}
+.company-page .eh-next svg { color: var(--accent-primary); flex-shrink: 0; }
+.company-page .eh-next .eh-next-est { margin-left: auto; }
+.company-page .cd-failed-toggle { margin-top: 8px; }

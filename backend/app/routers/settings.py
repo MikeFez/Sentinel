@@ -13,6 +13,7 @@ SETTING_DEFAULTS: dict[str, str] = {
     "llm_base_url": app_settings.llm_base_url,
     "llm_model": app_settings.llm_model,
     "llm_reasoning_effort": app_settings.llm_reasoning_effort,
+    "llm_max_tokens": str(app_settings.llm_max_tokens),
     "news_count": str(app_settings.news_article_count),
     "auto_refresh_enabled": str(app_settings.auto_refresh_enabled).lower(),
     "auto_refresh_hours": str(app_settings.auto_refresh_hours),
@@ -21,11 +22,18 @@ SETTING_DEFAULTS: dict[str, str] = {
     "private_refresh_days": str(app_settings.private_refresh_days),
     "history_detail_days": str(app_settings.history_detail_days),
     "move_sync_percent": str(app_settings.move_sync_percent),
+    "analysis_drift_percent": str(app_settings.analysis_drift_percent),
     "earnings_sync": str(app_settings.earnings_sync).lower(),
     "signal_sync": str(app_settings.signal_sync).lower(),
     "analysis_mode": app_settings.analysis_mode,
     "filings_enabled": str(app_settings.filings_enabled).lower(),
     "ai_prompt_instructions": app_settings.ai_prompt_instructions,
+    # Which notifications to send (destinations come from the NOTIFY_URLS environment variable)
+    **{
+        f"notify_{kind}": str(getattr(app_settings, f"notify_{kind}")).lower()
+        for kind in ("price_alerts", "big_moves", "sentiment_flips", "earnings", "material_news", "filings", "problems", "digest")
+    },
+    "notify_digest_day": app_settings.notify_digest_day,
 }
 
 

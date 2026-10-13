@@ -6,6 +6,7 @@ import { useAppData } from '../../state/useAppData';
 import type { IPOEntry } from '../../types';
 import { ago, daysUntil, inDays, money, shortDate } from '../../lib/format';
 import './IPOCalendar.css';
+import { useTitle } from '../../lib/useTitle';
 
 type View = 'upcoming' | 'recent' | 'withdrawn';
 
@@ -28,6 +29,7 @@ const lockupEnd = (date: string) => {
 };
 
 function IPOCalendar() {
+  useTitle('IPOs');
   const { companies, refresh, toast } = useAppData();
   const [ipos, setIpos] = useState<IPOEntry[]>([]);
   const [loading, setLoading] = useState(true);

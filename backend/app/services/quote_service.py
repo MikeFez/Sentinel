@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from ..models import Company
+from .price_history import record_price
 from .stock_service import StockService
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,11 @@ def quote_due(company: Company, now: datetime) -> bool:
 def refresh_quotes(db: Session, api_key: str, now: Optional[datetime] = None) -> int:
     """Fetch quotes for public companies that are due. Blocking: run it in a worker thread."""
     now = now or datetime.now(timezone.utc)
+    from ..routers.settings import get_float
+    from . import notifier
+
     service = StockService(api_key)
+    move_threshold = get_float(db, "move_sync_percent")
     updated = 0
     for company in db.query(Company).filter(Company.status == "public", Company.ticker.isnot(None)):
         if not quote_due(company, now):
@@ -50,9 +55,12 @@ def refresh_quotes(db: Session, api_key: str, now: Optional[datetime] = None) ->
         quote = service.get_quote(company.ticker)
         if not quote:
             continue
+        old_price = company.quote_price
         company.quote_price = quote["price"]
         company.quote_change = quote["change"]
         company.quote_at = now
+        record_price(db, company.id, quote["price"], now)
+        notifier.after_quote(db, company, old_price, move_threshold, now)
         updated += 1
     db.commit()
     return updated

@@ -1,11 +1,21 @@
 .settings-page {
   max-width: 900px;
-  margin: 0 auto;
 }
 
 .settings-header {
   margin-bottom: 20px;
 }
+
+.settings-page .settings-nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.settings-page .settings-nav-item {
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.settings-page .settings-nav-item:hover { color: var(--text-primary); border-color: var(--border-hover); }
+.settings-page [id] { scroll-margin-top: 16px; }
 
 .settings-header h1 {
   font-size: 24px;

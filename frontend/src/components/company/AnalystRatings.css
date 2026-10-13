@@ -1,100 +1,16 @@
-.analyst-ratings {
-  margin-top: 1.5rem;
-}
+.analyst-ratings .ar-total { font-size: 13px; font-weight: 400; margin-left: auto; }
+.analyst-ratings .ar-consensus { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.analyst-ratings .ar-consensus-value { font-size: 20px; font-weight: 600; }
+.analyst-ratings .ar-tone-hold { color: var(--warning); }
 
-.analyst-consensus {
-  text-align: center;
-  padding: 1.5rem;
-  background: var(--background);
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-}
-
-.consensus-label {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 0.5rem;
-}
-
-.consensus-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-}
-
-.consensus-count {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
-.ratings-breakdown {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.rating-row {
-  display: grid;
-  grid-template-columns: 100px 1fr 40px;
-  align-items: center;
-  gap: 1rem;
-}
-
-.rating-label {
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-.rating-bar-container {
-  height: 24px;
-  background: var(--background);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.rating-bar {
-  height: 100%;
-  transition: width 0.3s ease;
-  border-radius: 4px;
-}
-
-.rating-bar.strong-buy {
-  background: linear-gradient(90deg, #10b981, #059669);
-}
-
-.rating-bar.buy {
-  background: linear-gradient(90deg, #34d399, #10b981);
-}
-
-.rating-bar.hold {
-  background: linear-gradient(90deg, #fbbf24, #f59e0b);
-}
-
-.rating-bar.sell {
-  background: linear-gradient(90deg, #fb923c, #f97316);
-}
-
-.rating-bar.strong-sell {
-  background: linear-gradient(90deg, #f87171, #ef4444);
-}
-
-.rating-count {
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  font-weight: 600;
-  text-align: right;
-}
-
-@media (max-width: 768px) {
-  .rating-row {
-    grid-template-columns: 80px 1fr 35px;
-    gap: 0.75rem;
-  }
-
-  .rating-label {
-    font-size: 0.85rem;
-  }
-}
+.analyst-ratings .ar-rows { display: grid; gap: 8px; }
+.analyst-ratings .ar-row { display: grid; grid-template-columns: 84px 1fr 28px; align-items: center; gap: 10px; font-size: 13px; }
+.analyst-ratings .ar-label { color: var(--text-secondary); }
+.analyst-ratings .ar-track { height: 8px; border-radius: 4px; background: var(--bg-tertiary); overflow: hidden; }
+.analyst-ratings .ar-bar { height: 100%; border-radius: 4px; }
+.analyst-ratings .ar-strongBuy { background: var(--success); }
+.analyst-ratings .ar-buy { background: color-mix(in srgb, var(--success) 60%, var(--bg-tertiary)); }
+.analyst-ratings .ar-hold { background: var(--warning); }
+.analyst-ratings .ar-sell { background: color-mix(in srgb, var(--error) 60%, var(--bg-tertiary)); }
+.analyst-ratings .ar-strongSell { background: var(--error); }
+.analyst-ratings .ar-count { text-align: right; color: var(--text-primary); }

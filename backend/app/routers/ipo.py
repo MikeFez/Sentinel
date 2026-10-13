@@ -56,6 +56,8 @@ def get_ipo_calendar(db: Session = Depends(get_db)):
     if recent_entries:
         return recent_entries
 
+    # Everything from Finnhub is fetched before touching the table: deleting first would hold SQLite's
+    # write lock through dozens of slow requests and lock out syncs ("database is locked").
     stock_service = StockService(settings.finnhub_api_key)
     ipo_data = stock_service.get_ipo_calendar(days_ahead=90)
 
@@ -66,8 +68,8 @@ def get_ipo_calendar(db: Session = Depends(get_db)):
             if row.symbol:
                 saved_debut[row.symbol] = row.debut_price
             saved_debut[(row.name, row.date)] = row.debut_price
-
-    db.query(IPOEntry).delete()
+    # End the read transaction before the slow requests below, so the write at the end starts fresh
+    db.rollback()
 
     new_entries = []
     for ipo in ipo_data:
@@ -92,10 +94,10 @@ def get_ipo_calendar(db: Session = Depends(get_db)):
             if quote:
                 current_price = quote.get("c") or None
 
-        entry = _build_entry(ipo, debut_price, current_price)
-        db.add(entry)
-        new_entries.append(entry)
+        new_entries.append(_build_entry(ipo, debut_price, current_price))
 
+    db.query(IPOEntry).delete()
+    db.add_all(new_entries)
     db.commit()
     for entry in new_entries:
         db.refresh(entry)

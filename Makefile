@@ -54,11 +54,19 @@ logs: docker-logs ## Alias for docker-logs
 db-backup: ## Backup database
 	@echo "$(BLUE)Backing up database...$(NC)"
 	@mkdir -p backups
-	@cp data/sentinel.db backups/sentinel_$$(date +%Y%m%d_%H%M%S).db 2>/dev/null || echo "$(YELLOW)No database found to backup$(NC)"
+	@# SQLite's online backup inside the running container gets a consistent copy (the DB uses WAL,
+	@# so recent writes may still be in sentinel.db-wal); with the container stopped, a plain copy is safe.
+	@name=sentinel_$$(date +%Y%m%d_%H%M%S).db; \
+	if docker exec sentinel python -c "import sqlite3; s = sqlite3.connect('/app/data/sentinel.db'); d = sqlite3.connect('/app/data/$$name'); s.backup(d); d.close()" 2>/dev/null; then \
+		mv data/$$name backups/$$name; \
+	else \
+		cp data/sentinel.db backups/$$name 2>/dev/null || echo "$(YELLOW)No database found to backup$(NC)"; \
+	fi
 	@echo "$(GREEN)✓ Database backed up to backups/$(NC)"
 
 db-restore: ## Restore database from latest backup
 	@echo "$(YELLOW)Restoring database from latest backup...$(NC)"
+	@rm -f data/sentinel.db-wal data/sentinel.db-shm
 	@cp $$(ls -t backups/sentinel_*.db | head -1) data/sentinel.db
 	@echo "$(GREEN)✓ Database restored$(NC)"
 	@echo "$(YELLOW)Note: Restart container for changes to take effect$(NC)"
@@ -68,7 +76,7 @@ db-reset: ## Reset database (WARNING: deletes all data)
 	@read -p "Are you sure? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		rm -f data/sentinel.db; \
+		rm -f data/sentinel.db data/sentinel.db-wal data/sentinel.db-shm; \
 		echo "$(GREEN)✓ Database deleted. Restart container to reinitialize.$(NC)"; \
 	fi
 

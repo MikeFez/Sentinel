@@ -12,6 +12,8 @@ from .quote_service import NEW_YORK
 RESULTS_OUT = time(16, 30)
 # Don't chase earnings older than this
 EARNINGS_WINDOW_DAYS = 3
+# After any sync attempt, wait this long before a drift sync (so a failing LLM doesn't retry every check)
+DRIFT_RETRY_HOURS = 12
 
 
 def session_open(now: datetime) -> datetime:
@@ -49,15 +51,33 @@ def earnings_reason(earnings_dates: list, last_completed_at: Optional[datetime],
     return None
 
 
-def due_event_syncs(db: Session, move_threshold: float, earnings: bool, now: Optional[datetime] = None) -> list[tuple[str, str]]:
+def drift_reason(company: Company, analysis_price: Optional[float], last_sync_at: Optional[datetime],
+                 threshold: float, now: datetime) -> Optional[str]:
+    """A sync is due when the price has moved `threshold`% from the price the last analysis was written at."""
+    price = company.quote_price
+    if threshold <= 0 or not analysis_price or price is None:
+        return None
+    if last_sync_at is not None and last_sync_at > now - timedelta(hours=DRIFT_RETRY_HOURS):
+        return None
+    change = (price / analysis_price - 1) * 100
+    if abs(change) < threshold:
+        return None
+    return f"Price {'+' if change >= 0 else '−'}{abs(change):.0f}% since the last analysis"
+
+
+def due_event_syncs(db: Session, move_threshold: float, earnings: bool, now: Optional[datetime] = None,
+                    drift_threshold: float = 0) -> list[tuple[str, str]]:
     """[(company_id, reason)] for public companies that should sync because of an event."""
     now = now or datetime.now(timezone.utc)
     newest: dict = {}
     newest_completed: dict = {}
+    newest_analysis: dict = {}
     for s in db.query(Sync).order_by(Sync.synced_at.desc()):
         newest.setdefault(s.company_id, s)
         if s.status == SyncStatus.completed:
             newest_completed.setdefault(s.company_id, s)
+            if s.ai_summary:
+                newest_analysis.setdefault(s.company_id, s)
 
     due = []
     for c in db.query(Company).filter(Company.status == "public", Company.ticker.isnot(None)):
@@ -68,6 +88,10 @@ def due_event_syncs(db: Session, move_threshold: float, earnings: bool, now: Opt
         reason = move_reason(c, last.synced_at if last else None, move_threshold, now)
         if not reason and earnings and done is not None:
             reason = earnings_reason(done.earnings_dates, done.synced_at, now)
+        if not reason:
+            analysis = newest_analysis.get(c.id)
+            reason = drift_reason(c, analysis.stock_price if analysis else None,
+                                  last.synced_at if last else None, drift_threshold, now)
         if reason:
             due.append((c.id, reason))
     return due

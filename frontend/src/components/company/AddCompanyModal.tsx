@@ -203,7 +203,9 @@ function AddCompanyModal({ onClose, onSuccess, company }: AddCompanyModalProps) 
                 </div>
               </div>
               <small className={`form-hint ${alertProblem ? 'form-warn' : ''}`}>
-                {alertProblem || 'Shares put the company in your portfolio. Leave a field empty to clear it.'}
+                {alertProblem || (parseFloat(formData.shares_owned) > 0
+                  ? 'In your portfolio. Clear the shares to move it to your watchlist.'
+                  : 'On your watchlist. Enter shares owned to move it to your portfolio.')}
               </small>
             </section>
           )}

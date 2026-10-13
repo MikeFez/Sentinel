@@ -123,7 +123,10 @@ See `docker-compose.example.yml`. Pulling needs `docker login gitea.fessenden.ap
 | `LLM_BASE_URL` | OpenAI-compatible base URL including `/v1`, e.g. `http://athena.lan:8090/v1` (default until changed in Settings) |
 | `LLM_MODEL` | Model name, e.g. `qwen3.8:27b` (default until changed in Settings) |
 | `LLM_API_KEY` | Optional bearer token for the endpoint (env only, never stored in the DB) |
+| `LLM_MAX_TOKENS` | Output token budget per LLM call (default `16384`, until changed in Settings; `0` = the server's default). This is the reply only, not the context window: keep it below the server's per-slot context minus the prompt. Reasoning models need room to think before answering |
 | `SEC_USER_AGENT` | Contact for SEC EDGAR requests, e.g. `Jane Doe jane@example.com` (SEC rejects anonymous clients) |
+| `NOTIFY_URLS` | Where notifications go: one or more [Apprise URLs](https://github.com/caronc/apprise/wiki) (ntfy, Pushover, Discord, Telegram, email...), space-separated. Env only, since they hold tokens. Which events are sent is chosen in Settings |
+| `SENTINEL_URL` | Sentinel's own address, e.g. `http://athena.lan:8000`, for links in notifications (optional) |
 | `NEWS_ARTICLE_COUNT` | Articles per sync (initial default, `10`) |
 
 ## Project Structure

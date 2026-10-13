@@ -5,7 +5,7 @@
 .analyze-header {
   margin-bottom: 2rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .analyze-header-content {
@@ -15,7 +15,7 @@
 }
 
 .analyze-icon {
-  color: var(--primary);
+  color: var(--accent-primary);
 }
 
 .analyze-header h1 {
@@ -38,7 +38,7 @@
 
 .analyze-form-card {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 1.5rem;
 }
@@ -103,8 +103,8 @@
 .analyze-spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid var(--border-light);
-  border-top-color: var(--primary);
+  border: 3px solid var(--border-color);
+  border-top-color: var(--accent-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -117,7 +117,7 @@
 
 .analyze-result {
   background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 1.5rem;
 }
@@ -146,7 +146,7 @@
 
 .analyze-stock-item {
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 0.6rem 1rem;
   min-width: 100px;
@@ -190,7 +190,7 @@
 
 .analyze-prompt-section {
   margin-top: 1.25rem;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-color);
   padding-top: 1rem;
 }
 
@@ -211,7 +211,7 @@
 .analyze-prompt {
   margin-top: 0.75rem;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1rem;
   font-size: 0.78rem;
@@ -229,3 +229,4 @@
 }
 
 .analyze-track { margin-left: auto; }
+.analyze-page .analyze-saved-at { font-size: 13px; }

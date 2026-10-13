@@ -34,6 +34,8 @@ export interface LatestAnalysis {
   ai_sentiment: SentimentType | null;
   ai_summary: string;
   ai_changes: string | null;
+  /** The price when the analysis was written. */
+  stock_price?: number | null;
   /** Sentiment of the analysis before this one. */
   previous_sentiment: SentimentType | null;
 }
@@ -50,6 +52,13 @@ export interface SyncSummary {
   status: SyncStatus;
 }
 
+export interface SyncProgress {
+  steps: string[];
+  current: number;
+  /** Waiting for a free LLM slot (another sync or job is using it). */
+  waiting: boolean;
+}
+
 export interface CompanyWithSync extends Company {
   /** The newest *completed* sync. */
   latest_sync: SyncSummary | null;
@@ -57,6 +66,12 @@ export interface CompanyWithSync extends Company {
   latest_analysis: LatestAnalysis | null;
   is_stale: boolean;
   is_syncing: boolean;
+  /** While syncing: the steps and which one is running (null if unknown). */
+  sync_progress: SyncProgress | null;
+  /** When the newest stored article was first seen. */
+  latest_news_at: string | null;
+  /** The newest headline (last 90 days). */
+  latest_headline: { title: string; url: string; published_at: number | null } | null;
   /** Set when the most recent sync failed; latest_sync is then older. */
   sync_error: string | null;
   has_alert: boolean;
