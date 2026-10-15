@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from app.services.scorecard import Call, grade, one_per_day, summarize
+from app.services.scorecard import Call, grade, one_per_day, summarize, benchmark_calls
 from tests import factories as f
 
 T0 = datetime(2026, 6, 1, 20, 0, tzinfo=timezone.utc)
@@ -60,3 +60,47 @@ def test_scorecard_endpoint(client, db):
     assert o["calls"] == 2 and o["graded"] == 2 and o["hits"] == 2 and o["hit_rate"] == 100.0
     assert r["by_model"][0]["model"] == "qwen" and r["by_company"][0]["name"] == "Acme"
     assert r["recent"][0]["sentiment"] == "bearish" and r["recent"][0]["return"] < 0
+
+
+def test_no_early_grading_or_future_prices():
+    c = Call("c", day(0), "bullish", 100, "m")
+    grade([(day(25), 110), (day(30), 120)], [c], 30, now=day(26))
+    assert c.ret is None and not c.no_data
+    grade([(day(25), 110), (day(31), 120)], [c], 30, now=day(30))
+    assert c.later_price == 110  # day 31 hasn't happened
+
+
+def test_benchmark_uses_actual_endpoints_without_lookahead_and_missing_stays_missing():
+    c = Call("c", day(0), "bullish", 100, "m", later_price=108, later_at=day(29))
+    benchmark_calls([c], [(day(-1), 100), (day(1), 500), (day(29), 110), (day(30), 900)])
+    assert round(c.benchmark_return, 3) == 10
+    assert round(c.excess_return, 3) == -2 and c.relative_hit is False and c.hit is True
+    missing = Call("c", day(0), "bearish", 100, "m", later_price=108, later_at=day(29))
+    benchmark_calls([missing], [(day(-4), 100), (day(29), 110)])
+    assert missing.benchmark_return is None and missing.relative_hit is None
+
+
+def test_scorecard_reports_samples_intervals_and_prompt_cohorts(client, db):
+    from app.models import BenchmarkPrice
+    c = f.company(db)
+    s = f.sync(db, c, hours_ago=24 * 60, sentiment="bullish", stock_price=100,
+               llm_model="model", prompt_version="v1", analysis_horizon_days=30)
+    f.sync(db, c, synced_at=s.synced_at + timedelta(days=30), stock_price=108)
+    for at, price in [(s.synced_at - timedelta(hours=1), 100), (s.synced_at + timedelta(days=30), 110)]:
+        db.add(BenchmarkPrice(symbol="SPY", day=at.date().isoformat(), price=price, at=at))
+    db.commit()
+    result = client.get("/api/scorecard?horizon=30").json()
+    o = result["overall"]
+    assert o["small_sample"] and o["return_samples"]["bullish"] == 1
+    assert o["hit_rate_interval"][0] < 100 and o["hit_rate_interval"][1] == 100
+    assert o["benchmark_graded"] == 1 and o["benchmark_hit_rate"] == 0
+    assert o["avg_excess_return"]["bullish"] == -2
+    assert result["by_version"][0]["prompt_version"] == "v1"
+    assert result["by_version"][0]["prediction_days"] == 30
+
+
+def test_one_per_day_uses_new_york_not_utc():
+    # Both timestamps are June 1 in New York, although the latter is June 2 UTC.
+    first = Call("c", day(0, 23), "bearish", 100, None)
+    last = Call("c", day(1, 1), "bullish", 100, None)
+    assert one_per_day([first, last]) == [last]

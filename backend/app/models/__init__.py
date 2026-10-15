@@ -10,5 +10,6 @@ from .activity import ActivityEvent
 from .price import DailyPrice
 from .research import ResearchItem
 from .notification import Notification
+from .insight import InboxReview, BenchmarkPrice
 
 __all__ = ["Company", "CompanyStatus", "Tag", "CompanyTag", "Sync", "SyncStatus", "SentimentType", "Setting", "IPOEntry", "NewsArticle", "Filing", "NewsStory", "ActivityEvent", "DailyPrice", "ResearchItem", "Notification"]

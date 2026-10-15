@@ -12,7 +12,8 @@ from . import activity, sync_progress
 from .news_store import store_articles
 from .price_history import record_price
 from .stories import group_new_articles
-from .llm_service import LLMService
+from .llm_service import LLMService, prompt_version
+from .evidence import source_catalog, validated_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,15 @@ class SyncService:
 
             logger.info(f"Generating AI analysis for {company.name}")
             custom_instructions = _get_setting(self.db, "ai_prompt_instructions") or None
+            from ..models import Filing, NewsStory
+            filings = self.db.query(Filing).filter(
+                Filing.company_id == company.id, Filing.summary.isnot(None), Filing.routine.isnot(True)
+            ).order_by(Filing.filed_on.desc()).limit(3).all()
+            stories = self.db.query(NewsStory).filter(
+                NewsStory.company_id == company.id, NewsStory.material.is_(True)
+            ).order_by(NewsStory.last_seen_at.desc()).limit(5).all()
+            sources = source_catalog(news_articles, stock_data, analyst_ratings, sync.earnings_history, filings, stories)
+            debate = _get_setting(self.db, "analysis_mode") == "debate"
             previous = (
                 self.db.query(Sync)
                 .filter(
@@ -156,7 +166,8 @@ class SyncService:
                 earnings_history=sync.earnings_history,
                 peers=sync.peers,
                 extra_context=self.extra_context(company),
-                debate=_get_setting(self.db, "analysis_mode") == "debate",
+                debate=debate,
+                evidence_sources=sources,
                 custom_instructions=custom_instructions,
                 previous=previous and {
                     "date": previous.synced_at.strftime("%Y-%m-%d"),
@@ -179,6 +190,9 @@ class SyncService:
                 sync.ai_changes = analysis.changes
                 sync.ai_bull = analysis.bull_case
                 sync.ai_bear = analysis.bear_case
+                sync.ai_evidence = validated_evidence(analysis, sources)
+                sync.prompt_version = prompt_version(custom_instructions, debate)
+                sync.analysis_horizon_days = 30
 
             sync.status = SyncStatus.completed
             self.db.commit()

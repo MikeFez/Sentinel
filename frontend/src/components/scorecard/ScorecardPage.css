@@ -6,3 +6,5 @@
 .sc-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
 @media (max-width: 1000px) { .sc-grid { grid-template-columns: 1fr; } }
 .sc-note { font-size: 12px; margin-top: 12px; }
+.sc-scroll { overflow-x: auto; }
+.sc-version { font-size: 11px; overflow-wrap: anywhere; }

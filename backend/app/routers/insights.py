@@ -1,14 +1,44 @@
 from typing import Optional
+from typing import Literal
+from datetime import datetime, timedelta, timezone
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import Company, Filing, NewsStory
+from ..models import Company, Filing, NewsStory, InboxReview
+from ..services.inbox import change_inbox
 from ..services.scorecard import scorecard
 from ..services.stories import theme_trends
 
 router = APIRouter(prefix="/api", tags=["insights"])
+
+
+@router.get("/inbox")
+def get_inbox(db: Session = Depends(get_db)):
+    return {"items": change_inbox(db), "lookback_days": 30}
+
+
+class ReviewAction(BaseModel):
+    key: str
+    action: Literal["review", "snooze", "reopen"]
+
+
+@router.post("/inbox/review")
+def review_inbox(body: ReviewAction, db: Session = Depends(get_db)):
+    item = next((e for e in change_inbox(db) if e["key"] == body.key), None)
+    if not item:
+        raise HTTPException(404, "This event is no longer in the briefing")
+    row = db.get(InboxReview, body.key)
+    if row is None:
+        row = InboxReview(key=body.key, company_id=item["company_id"])
+        db.add(row)
+    now = datetime.now(timezone.utc)
+    row.reviewed_at = now if body.action == "review" else None
+    row.snoozed_until = now + timedelta(days=1) if body.action == "snooze" else None
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/scorecard")

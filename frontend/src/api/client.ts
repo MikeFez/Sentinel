@@ -9,6 +9,7 @@ import type {
   TagUpdate,
   Sync,
   IPOEntry,
+  AnalysisEvidence,
 } from '../types';
 
 /** The server's error message (FastAPI's `detail`), or `fallback`. */
@@ -208,6 +209,10 @@ export interface AnalyzeRequest {
 }
 
 export interface AnalyzeResult {
+  evidence?: AnalysisEvidence | null;
+  prompt_version?: string | null;
+  model?: string | null;
+  prediction_days?: number | null;
   summary: string | null;
   sentiment: string | null;
   key_points: string[];
@@ -278,6 +283,10 @@ export const runAnalysis = async (request: AnalyzeRequest): Promise<AnalyzeResul
 // Domain Discovery
 
 export interface DiscoverCompany {
+  evidence?: AnalysisEvidence | null;
+  prompt_version?: string | null;
+  model?: string | null;
+  prediction_days?: number | null;
   ticker: string;
   name: string;
   cik: string;
@@ -377,6 +386,12 @@ export const importData = async (data: ExportFile, includeSettings: boolean, dry
 
 // Scorecard
 export interface ScoreSummary {
+  hit_rate_interval: [number, number] | null;
+  small_sample: boolean;
+  return_samples: Record<'bullish' | 'bearish' | 'neutral' | 'mixed', number>;
+  benchmark_graded: number;
+  benchmark_hit_rate: number | null;
+  avg_excess_return: Record<'bullish' | 'bearish' | 'neutral' | 'mixed', number | null>;
   calls: number;
   graded: number;
   hits: number;
@@ -390,6 +405,11 @@ export interface ScoreSummary {
 }
 
 export interface ScoredCall {
+  prompt_version: string | null;
+  prediction_days: number | null;
+  benchmark_return: number | null;
+  excess_return: number | null;
+  relative_hit: boolean | null;
   company_id: string;
   name: string;
   at: string;
@@ -404,6 +424,9 @@ export interface ScoredCall {
 }
 
 export interface Scorecard {
+  benchmark: string;
+  tolerance_days: number;
+  by_version: (ScoreSummary & { model: string; prompt_version: string; prediction_days: number | null })[];
   horizon_days: number;
   overall: ScoreSummary;
   by_company: (ScoreSummary & { company_id: string; name: string; ticker: string | null })[];
@@ -417,6 +440,27 @@ export const getScorecard = async (horizon: number, companyId?: string): Promise
 };
 
 // Filings, stories, themes
+export interface InboxItem {
+  key: string;
+  company_id: string;
+  company_name: string;
+  ticker: string | null;
+  owned: boolean;
+  kind: 'story' | 'risk' | 'filing' | 'sentiment' | 'analysis' | 'catalyst';
+  title: string;
+  detail: string | null;
+  at: string;
+  state: 'active' | 'reviewed' | 'snoozed';
+  snoozed_until: string | null;
+  href: string;
+  sources: { title: string; url: string | null }[];
+}
+
+export const getInbox = async (): Promise<{ items: InboxItem[]; lookback_days: number }> => (await api.get('/inbox')).data;
+export const reviewInbox = async (key: string, action: 'review' | 'snooze' | 'reopen'): Promise<void> => {
+  await api.post('/inbox/review', { key, action });
+};
+
 export interface FilingSummary {
   id: string;
   form: string;

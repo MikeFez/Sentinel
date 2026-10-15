@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from ..models import DailyPrice
+from ..models import DailyPrice, BenchmarkPrice
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -24,4 +24,16 @@ def record_price(db: Session, company_id: str, price: Optional[float], at: Optio
         db.add(DailyPrice(company_id=company_id, day=day, price=price, at=at))
         db.flush()  # so a second call in this session finds it (the session doesn't autoflush)
     elif row.at is None or row.at <= at:
+        row.price, row.at = price, at
+
+
+def record_benchmark(db: Session, price: float, at: datetime, symbol: str = "SPY") -> None:
+    if price <= 0:
+        return
+    day = at.astimezone(NEW_YORK).date().isoformat()
+    row = db.get(BenchmarkPrice, (symbol, day))
+    if row is None:
+        db.add(BenchmarkPrice(symbol=symbol, day=day, price=price, at=at))
+        db.flush()
+    elif row.at <= at:
         row.price, row.at = price, at

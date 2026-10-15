@@ -101,6 +101,8 @@ function CompanyDetail() {
   const latest = completed[0];
   // The newest analysis may be older than the newest data if the last analysis run failed
   const analysisSync = completed.find((s) => s.ai_summary);
+  const selectedAnalysisId = params.get('analysis');
+  const selectedAnalysis = selectedAnalysisId ? completed.find((s) => s.id === selectedAnalysisId && s.ai_summary) : null;
   const alert = triggeredAlert(company);
   const newsUnread = tab !== 'news' && hasUnreadNews(company.latest_news_at, newsSeen.lastVisit, newsSeen.byCompany[company.id]);
   const stale = !latest || hoursSince(latest.synced_at) > stalenessHours;
@@ -231,6 +233,15 @@ function CompanyDetail() {
 
         {tab === 'overview' && (
           <div className="cd-overview">
+            {selectedAnalysisId && selectedAnalysis && (
+              <section className="card">
+                <div className="notice notice-info">Analysis selected from your briefing · {parseTime(selectedAnalysis.synced_at).toLocaleString()}
+                  <button className="btn btn-ghost btn-sm" onClick={() => setParams({})}>Return to latest</button>
+                </div>
+                <AiAnalysisPanel sync={selectedAnalysis} livePrice={live?.price} driftPercent={driftPercent} />
+              </section>
+            )}
+            {selectedAnalysisId && !selectedAnalysis && syncs.length > 0 && <div className="notice notice-warning">This analysis is no longer available. Showing the latest below.</div>}
             {!latest && !syncing && (
               <div className="card cd-empty">
                 <p>No data yet. Sync to fetch {company.status === 'public' ? 'prices, news, analyst ratings' : 'news'} and an AI analysis.</p>
@@ -245,7 +256,7 @@ function CompanyDetail() {
                 </span>
               </div>
             )}
-            {analysisSync && (
+            {analysisSync && !selectedAnalysis && (
               <AiAnalysisPanel sync={analysisSync} trackRecord={company.status === 'public' ? trackRecord : null}
                 livePrice={live?.price} driftPercent={driftPercent} />
             )}

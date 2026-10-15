@@ -38,6 +38,25 @@ A self-hosted stock and company intelligence dashboard that aggregates news, sto
 - Static file serving
 - Data persistence with volume mounts
 
+## Daily briefing, evidence, and evaluation
+
+- **What changed?** on the dashboard combines material stories, new filing risks, sentiment changes,
+  analysis changes, and earnings due within a week. Holdings and material developments receive priority.
+  Mark entries reviewed, return them to the inbox, or set a reminder for 24 hours later. Review state is
+  saved on the server and shared across browsers. Visiting a company does not mark its briefing reviewed.
+  The briefing covers the past 30 days; a story updated after review returns as a new entry.
+- **Evidence links** in new company, Research, and Discovery analyses connect summary paragraphs,
+  key points, and risks to supplied articles, filings, and saved metric snapshots. The server accepts
+  references only to sources supplied to that analysis. Sources remain saved when old sync detail is
+  pruned. Unsupported claims are labeled; source references are not independent fact checking. Older
+  analyses keep their original content without invented citations or prompt metadata.
+- **AI scorecard** shows sample sizes, a descriptive 95% hit-rate interval, model/prompt cohorts, and
+  SPY-relative returns alongside absolute returns. New analyses use an explicit 30-day outlook; the
+  scorecard can evaluate 7, 30, and 90-day outcomes. SPY quotes are collected automatically with the
+  normal quote refresh (requires Finnhub and a positive price refresh interval), without adding SPY to
+  the watchlist. There is no historical backfill: relative results stay blank until matching prices
+  exist. Returns exclude dividends and fees and are not adjusted for corporate actions.
+
 ## Tech Stack
 
 - **Backend**: Python 3.12+ / FastAPI

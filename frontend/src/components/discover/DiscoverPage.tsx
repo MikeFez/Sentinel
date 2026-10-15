@@ -7,6 +7,7 @@ import { useAppData } from '../../state/useAppData';
 import type { DiscoverSession, DiscoverCompany } from '../../api/client';
 import type { SentimentType } from '../../types';
 import SentimentBadge from '../shared/SentimentBadge';
+import { EvidenceLinks, EvidenceSources } from '../shared/AnalysisEvidence';
 import './DiscoverPage.css';
 
 const STAGE_LABELS: Record<string, string> = {
@@ -130,9 +131,11 @@ function CompanyRow({ company, sessionId, onSessionUpdate, onWatch }: CompanyRow
         <tr className="discover-summary-row">
           <td colSpan={6}>
             <div className="discover-summary-text">
-              {company.summary.split('\n').filter(Boolean).map((line, i) => (
-                <p key={i}>{line}</p>
+              {company.prediction_days && <p className="muted">{company.prediction_days}-day outlook · {company.model} · {company.prompt_version}</p>}
+              {company.summary.split('\n').filter((line) => line.trim()).map((line, i) => (
+                <p key={i}>{line}<EvidenceLinks evidence={company.evidence} scope={`discover-${company.ticker}`} section="summary" index={i} /></p>
               ))}
+              <EvidenceSources evidence={company.evidence} scope={`discover-${company.ticker}`} />
             </div>
           </td>
         </tr>

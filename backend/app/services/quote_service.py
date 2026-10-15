@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from ..models import Company
-from .price_history import record_price
+from ..models import Company, BenchmarkPrice
+from .price_history import record_price, record_benchmark
 from .stock_service import StockService
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,11 @@ def refresh_quotes(db: Session, api_key: str, now: Optional[datetime] = None) ->
     service = StockService(api_key)
     move_threshold = get_float(db, "move_sync_percent")
     updated = 0
+    benchmark = db.query(BenchmarkPrice).filter(BenchmarkPrice.symbol == "SPY").order_by(BenchmarkPrice.at.desc()).first()
+    if quote_due(Company(quote_at=benchmark.at if benchmark else None), now):
+        quote = service.get_quote("SPY")
+        if quote:
+            record_benchmark(db, quote["price"], now)
     for company in db.query(Company).filter(Company.status == "public", Company.ticker.isnot(None)):
         if not quote_due(company, now):
             continue

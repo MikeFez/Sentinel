@@ -343,6 +343,9 @@ async def _analyze_company(
             "market_cap": company["market_cap"],
         }
 
+    from .evidence import source_catalog, validated_evidence
+    from .llm_service import prompt_version
+    sources = source_catalog(news_articles, stock_data, analyst_ratings)
     analysis, _ = await llm.analyze_company(
         company_name=company["name"],
         ticker=ticker,
@@ -352,10 +355,15 @@ async def _analyze_company(
         analyst_ratings=analyst_ratings,
         insider_transactions=insider_transactions,
         custom_instructions=custom_instructions or None,
+        evidence_sources=sources,
     )
     if analysis is None:
         raise RuntimeError(llm.last_error or "AI analysis failed")
 
     company["sentiment"] = analysis.sentiment
     company["summary"] = analysis.summary
+    company["evidence"] = validated_evidence(analysis, sources)
+    company["prompt_version"] = prompt_version(custom_instructions, False)
+    company["model"] = llm.model
+    company["prediction_days"] = 30
     company["status"] = "complete"

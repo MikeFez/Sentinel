@@ -52,6 +52,11 @@ export interface SyncSummary {
   status: SyncStatus;
 }
 
+export interface AnalysisEvidence {
+  sources: { id: string; title: string; excerpt: string; url: string | null; kind: string }[];
+  citations: { section: string; index: number; source_ids: string[] }[];
+}
+
 export interface SyncProgress {
   steps: string[];
   current: number;
@@ -144,6 +149,9 @@ export interface Sync {
   llm_model: string | null;
   ai_bull: string | null;
   ai_bear: string | null;
+  ai_evidence: AnalysisEvidence | null;
+  prompt_version: string | null;
+  analysis_horizon_days: number | null;
   status: SyncStatus;
 }
 

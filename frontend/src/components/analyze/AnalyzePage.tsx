@@ -8,6 +8,7 @@ import { useAppData } from '../../state/useAppData';
 import type { AnalyzeResult } from '../../api/client';
 import type { SentimentType } from '../../types';
 import SentimentBadge from '../shared/SentimentBadge';
+import { EvidenceLinks, EvidenceSources } from '../shared/AnalysisEvidence';
 import './AnalyzePage.css';
 import '../company/AiAnalysisPanel.css';
 
@@ -86,6 +87,8 @@ function AnalyzePage() {
   };
 
   const stockData = result?.stock_data as Record<string, unknown> | null;
+  const evidenceScope = savedId ?? 'research-analysis';
+  const citations = (section: string, index: number) => <EvidenceLinks evidence={result?.evidence} section={section} index={index} scope={evidenceScope} />;
 
   return (
     <div className="analyze-page">
@@ -169,6 +172,7 @@ function AnalyzePage() {
               ))}
             </div>
 
+            {result.prediction_days && <p className="muted">{result.prediction_days}-day outlook · {result.model} · {result.prompt_version}</p>}
             {stockData && (
               <div className="analyze-stock-grid">
                 {stockData.stock_price != null && (
@@ -208,8 +212,8 @@ function AnalyzePage() {
 
             {result.summary && (
               <div className="analyze-summary">
-                {result.summary.split('\n').map((line, i) => (
-                  <p key={i}>{line}</p>
+                {result.summary.split('\n').filter((line) => line.trim()).map((line, i) => (
+                  <p key={i}>{line}{citations('summary', i)}</p>
                 ))}
               </div>
             )}
@@ -217,14 +221,15 @@ function AnalyzePage() {
             {(result.key_points.length > 0 || result.risks.length > 0) && (
               <div className="ai-lists">
                 {result.key_points.length > 0 && (
-                  <div><h3>Key points</h3><ul>{result.key_points.map((k, i) => <li key={i}>{k}</li>)}</ul></div>
+                  <div><h3>Key points</h3><ul>{result.key_points.map((k, i) => <li key={i}>{k}{citations('key_points', i)}</li>)}</ul></div>
                 )}
                 {result.risks.length > 0 && (
-                  <div><h3>Risks</h3><ul className="ai-risks">{result.risks.map((r, i) => <li key={i}>{r}</li>)}</ul></div>
+                  <div><h3>Risks</h3><ul className="ai-risks">{result.risks.map((r, i) => <li key={i}>{r}{citations('risks', i)}</li>)}</ul></div>
                 )}
               </div>
             )}
 
+            <EvidenceSources evidence={result.evidence} scope={evidenceScope} />
             {result.prompt && (
               <div className="analyze-prompt-section">
                 <button

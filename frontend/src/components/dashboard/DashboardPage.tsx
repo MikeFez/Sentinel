@@ -8,6 +8,7 @@ import type { CompanyWithSync } from '../../types';
 import { money, signedMoney, pct, direction, ago, num, shortDate, inDays } from '../../lib/format';
 import SentimentBadge from '../shared/SentimentBadge';
 import AddCompanyModal from '../company/AddCompanyModal';
+import ChangeInbox from './ChangeInbox';
 import { isQueued, syncStepText } from '../../lib/syncSteps';
 import { useTitle } from '../../lib/useTitle';
 import { useSort, type SortState } from '../../lib/useSort';
@@ -227,6 +228,8 @@ function DashboardPage() {
           ))}
         </section>
       )}
+
+      <ChangeInbox />
 
       <div className="db-grid">
         <div className="db-main">

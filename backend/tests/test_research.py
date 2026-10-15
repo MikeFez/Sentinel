@@ -15,12 +15,16 @@ def test_analysis_is_saved_listed_reopened_and_deleted(client, monkeypatch):
     monkeypatch.setattr(analyze_router, "LLMService", FakeLLM)
     result = client.post("/api/analyze", json={"company_name": "Acme", "notes": "a thesis"}).json()
     assert result["sentiment"] == "bearish" and result["id"]
+    assert result["prediction_days"] == 30 and result["prompt_version"].startswith("evidence-v1-")
+    assert result["evidence"]["sources"][0]["excerpt"] == "a thesis"
+    assert result["evidence"]["sources"][0]["kind"] == "user_notes"
 
     [row] = client.get("/api/research?kind=analysis").json()
     assert (row["id"], row["title"], row["sentiment"], row["summary"]) == (result["id"], "Acme", "bearish", "Looks fine.")
 
     saved = client.get(f"/api/research/{row['id']}").json()
     assert saved["data"]["request"]["notes"] == "a thesis" and saved["data"]["result"]["summary"] == "Looks fine."
+    assert saved["data"]["result"]["evidence"] == result["evidence"]
 
     assert client.delete(f"/api/research/{row['id']}").status_code == 204
     assert client.get("/api/research").json() == []

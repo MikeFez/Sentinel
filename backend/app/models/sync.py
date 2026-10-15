@@ -68,6 +68,9 @@ class Sync(Base):
     llm_model = Column(String, nullable=True)
     ai_bull = Column(Text, nullable=True)
     ai_bear = Column(Text, nullable=True)
+    ai_evidence = Column(JSON, nullable=True)
+    prompt_version = Column(String, nullable=True)
+    analysis_horizon_days = Column(Integer, nullable=True)
 
     # Relationships
     company = relationship("Company", back_populates="syncs")

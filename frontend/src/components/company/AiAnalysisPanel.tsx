@@ -6,6 +6,7 @@ import type { Sync } from '../../types';
 import { ago, money, pct } from '../../lib/format';
 import { driftSince } from '../../lib/drift';
 import SentimentBadge from '../shared/SentimentBadge';
+import { EvidenceLinks, EvidenceSources } from '../shared/AnalysisEvidence';
 import './AiAnalysisPanel.css';
 
 interface Props {
@@ -40,6 +41,8 @@ function AiAnalysisPanel({ sync, trackRecord, livePrice, driftPercent = 15 }: Pr
   const keyPoints = sync.ai_key_points ?? [];
   const risks = sync.ai_risks ?? [];
   const drift = driftSince(sync.stock_price, livePrice);
+  const evidence = sync.ai_evidence;
+  const citations = (section: string, index: number) => <EvidenceLinks evidence={evidence} section={section} index={index} scope={sync.id} />;
 
   return (
     <div className="ai-analysis-panel">
@@ -52,6 +55,12 @@ function AiAnalysisPanel({ sync, trackRecord, livePrice, driftPercent = 15 }: Pr
         {sync.ai_sentiment && <SentimentBadge sentiment={sync.ai_sentiment} />}
       </div>
       {trackRecord && <TrackRecord s={trackRecord} />}
+      <p className="ai-track muted">
+        {sync.analysis_horizon_days ? `${sync.analysis_horizon_days}-day outlook` : 'Outlook horizon not recorded'}
+        {sync.llm_model && <> · {sync.llm_model}</>}
+        {sync.prompt_version && <> · <span title="Identifies the analysis format, instructions and debate mode">{sync.prompt_version}</span></>}
+      </p>
+      {!evidence && <p className="ai-track muted">This older analysis has no saved evidence references. New analyses link claims to their sources.</p>}
 
       {drift != null && Math.abs(drift) >= driftPercent ? (
         <div className="notice notice-warning ai-drift">
@@ -68,12 +77,12 @@ function AiAnalysisPanel({ sync, trackRecord, livePrice, driftPercent = 15 }: Pr
       {sync.ai_changes && (
         <div className="ai-changes">
           <GitCompareArrows size={16} />
-          <div><strong>Since the last analysis:</strong> {sync.ai_changes}</div>
+          <div><strong>Since the last analysis:</strong> {sync.ai_changes}{citations('changes', 0)}</div>
         </div>
       )}
 
       <div className="ai-summary">
-        {sync.ai_summary.split('\n').filter((p) => p.trim()).map((paragraph, i) => <p key={i}>{paragraph}</p>)}
+        {sync.ai_summary.split('\n').filter((p) => p.trim()).map((paragraph, i) => <p key={i}>{paragraph}{citations('summary', i)}</p>)}
       </div>
 
       {(keyPoints.length > 0 || risks.length > 0) && (
@@ -81,17 +90,19 @@ function AiAnalysisPanel({ sync, trackRecord, livePrice, driftPercent = 15 }: Pr
           {keyPoints.length > 0 && (
             <div>
               <h3>Key points</h3>
-              <ul>{keyPoints.map((k, i) => <li key={i}>{k}</li>)}</ul>
+              <ul>{keyPoints.map((k, i) => <li key={i}>{k}{citations('key_points', i)}</li>)}</ul>
             </div>
           )}
           {risks.length > 0 && (
             <div>
               <h3>Risks</h3>
-              <ul className="ai-risks">{risks.map((r, i) => <li key={i}>{r}</li>)}</ul>
+              <ul className="ai-risks">{risks.map((r, i) => <li key={i}>{r}{citations('risks', i)}</li>)}</ul>
             </div>
           )}
         </div>
       )}
+
+      <EvidenceSources evidence={evidence} scope={sync.id} />
 
       {sync.ai_bull && sync.ai_bear && (
         <>

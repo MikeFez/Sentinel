@@ -39,6 +39,9 @@ class SyncResponse(BaseModel):
     llm_model: Optional[str] = None
     ai_bull: Optional[str] = None
     ai_bear: Optional[str] = None
+    ai_evidence: Optional[Dict[str, Any]] = None
+    prompt_version: Optional[str] = None
+    analysis_horizon_days: Optional[int] = None
     status: str
 
     model_config = ConfigDict(from_attributes=True)

@@ -44,3 +44,24 @@ def test_record_price_keeps_the_latest_per_new_york_day(db):
     db.commit()
     [row] = db.query(DailyPrice).all()
     assert (row.day, row.price) == ("2026-10-09", 11.0)
+
+
+def test_quote_refresh_collects_benchmark_without_watching_spy(db, monkeypatch):
+    from app.models import BenchmarkPrice
+    from app.services import quote_service
+    called = []
+
+    class Quotes:
+        def __init__(self, key): pass
+        def get_quote(self, ticker):
+            called.append(ticker)
+            return {"price": 500 if ticker == "SPY" else 10, "change": 1}
+
+    monkeypatch.setattr(quote_service, "StockService", Quotes)
+    f.company(db)
+    now = utc(2026, 10, 5, 20, 5)
+    assert quote_service.refresh_quotes(db, "key", now) == 1
+    assert called == ["SPY", "ACME"]
+    assert db.query(BenchmarkPrice).one().price == 500
+    quote_service.refresh_quotes(db, "key", now + timedelta(minutes=1))
+    assert called == ["SPY", "ACME"]  # no repeated refresh after close

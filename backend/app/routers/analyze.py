@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from ..database import get_db
 from ..services.stock_service import StockService
-from ..services.llm_service import LLMService
+from ..services.llm_service import LLMService, prompt_version
+from ..services.evidence import source_catalog, validated_evidence
 from ..config import settings as app_settings
 from ..services import research_store
 from .settings import get_setting
@@ -20,6 +21,10 @@ class AnalyzeRequest(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
+    evidence: Optional[Dict[str, Any]] = None
+    prompt_version: Optional[str] = None
+    model: Optional[str] = None
+    prediction_days: Optional[int] = None
     summary: Optional[str] = None
     sentiment: Optional[str] = None
     key_points: List[str] = []
@@ -64,6 +69,7 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
     custom_instructions = get_setting(db, "ai_prompt_instructions") or None
 
     llm = LLMService(llm_base_url, llm_model)
+    sources = source_catalog(news_articles, stock_data, analyst_ratings)
     analysis, prompt = await llm.analyze_company(
         company_name=request.company_name or request.ticker or "Unknown",
         ticker=request.ticker,
@@ -73,11 +79,14 @@ async def run_analysis(request: AnalyzeRequest, db: Session = Depends(get_db)):
         analyst_ratings=analyst_ratings,
         insider_transactions=insider_transactions,
         custom_instructions=custom_instructions,
+        evidence_sources=sources,
     )
     if analysis is None:
         raise HTTPException(status_code=502, detail=f"AI analysis failed: {llm.last_error or 'no response from the LLM'}")
 
     response = AnalyzeResponse(
+        evidence=validated_evidence(analysis, sources),
+        prompt_version=prompt_version(custom_instructions, False), model=llm_model, prediction_days=30,
         summary=analysis.summary,
         sentiment=analysis.sentiment,
         key_points=analysis.key_points,
